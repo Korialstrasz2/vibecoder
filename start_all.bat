@@ -116,6 +116,15 @@ call :log INFO "opencode command is available"
 exit /b 0
 
 :check_runtime_inputs
+set "RUNTIME_ERR=0"
+call :log INFO "Runtime validation input: LLAMA_EXE=%LLAMA_EXE%"
+call :log INFO "Runtime validation input: MODEL_FILE=%MODEL_FILE%"
+if not exist "%CD%\runtime" (
+  call :log WARN "runtime\ directory does not exist under %CD%"
+)
+if not exist "%CD%\models" (
+  call :log WARN "models\ directory does not exist under %CD%"
+)
 if not exist "%LLAMA_EXE%" (
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
     set "LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe"
@@ -124,15 +133,50 @@ if not exist "%LLAMA_EXE%" (
     call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
     echo [ERROR] llama-server.exe not found:
     echo         %LLAMA_EXE%
-    echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
-    echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
-    exit /b 1
+    echo         Checked fallback path:
+    echo         %CD%\runtime\llama.cpp\build\bin\llama-server.exe
+    if not exist "%CD%\runtime\llama.cpp" (
+      echo         runtime\llama.cpp\ is missing.
+      echo         Run setup_runtime.bat first to install/build llama.cpp runtime files.
+    ) else (
+      echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
+      echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
+    )
+    set "RUNTIME_ERR=1"
   )
 )
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
   echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
+  if not exist "%CD%\models" (
+    echo         models\ directory does not exist yet.
+    echo         Create models\ and copy at least one .gguf model into it.
+  )
+  set "RUNTIME_ERR=1"
+) else (
+  if not exist "%MODEL_FILE%" (
+    call :log ERROR "MODEL_FILE path does not exist: %MODEL_FILE%"
+    echo [ERROR] MODEL_FILE points to a file that does not exist:
+    echo         %MODEL_FILE%
+    echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
+    set "RUNTIME_ERR=1"
+  ) else (
+    for %%E in ("%MODEL_FILE%") do set "MODEL_EXT=%%~xE"
+    if /I not "%MODEL_EXT%"==".gguf" (
+      call :log WARN "MODEL_FILE does not end with .gguf: %MODEL_FILE%"
+      echo [WARN] MODEL_FILE does not have .gguf extension:
+      echo        %MODEL_FILE%
+      echo        llama-server usually expects GGUF models. Verify this is intentional.
+    )
+  )
+)
+if "%RUNTIME_ERR%"=="1" (
+  echo [INFO] Detected .gguf files under models\ (if any):
+  for /f "delims=" %%F in ('dir /b "%CD%\models\*.gguf" 2^>nul') do echo        - %%F
+  echo [INFO] Tip: You can override both paths in local_settings.bat:
+  echo        set LLAMA_EXE=...
+  echo        set MODEL_FILE=...
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
@@ -245,5 +289,40 @@ echo [FATAL] Startup aborted at step: %LAST_FAILED_STEP% (exit %RC%)
 echo         See logs for details:
 echo         %MAIN_LOG%
 echo         %SERVER_LOG%
+if "%LAST_FAILED_STEP%"=="Validate runtime/model files" (
+  echo.
+  echo [HINT] Runtime/model validation failed. Common causes:
+  echo        1^) llama-server.exe missing in runtime\llama.cpp\ or runtime\llama.cpp\build\bin\
+  echo        2^) No *.gguf model in models\
+  echo        3^) MODEL_FILE in local_settings.bat points to a missing file
+  echo        4^) LLAMA_EXE in local_settings.bat points to a missing file
+)
+if "%LAST_FAILED_STEP%"=="Check required commands" (
+  echo.
+  echo [HINT] Install missing tools and re-open terminal:
+  echo        - PowerShell (built into Windows)
+  echo        - Node.js + npm (https://nodejs.org)
+)
+if "%LAST_FAILED_STEP%"=="Ensure opencode" (
+  echo.
+  echo [HINT] opencode install failed. Try:
+  echo        npm install -g opencode-ai
+  echo        (Run terminal as a user with npm global install permissions)
+)
+if "%LAST_FAILED_STEP%"=="Check llama port" (
+  echo.
+  echo [HINT] Another process is using LLAMA_PORT. Either stop that process
+  echo        or set LLAMA_PORT to a free port in local_settings.bat.
+)
+if "%LAST_FAILED_STEP%"=="Wait for llama-server health" (
+  echo.
+  echo [HINT] llama-server did not come up in time.
+  echo        Check SERVER_LOG for model load errors or unsupported GPU flags.
+)
+if "%LAST_FAILED_STEP%"=="Install OpenCode config" (
+  echo.
+  echo [HINT] APPDATA was unavailable or config copy failed.
+  echo        Run from a normal interactive Windows user session.
+)
 call :log ERROR "Startup aborted at step: %LAST_FAILED_STEP% (exit %RC%)"
 exit /b %RC%
