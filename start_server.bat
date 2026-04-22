@@ -11,8 +11,6 @@ if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999
 if "%LLAMA_ALIAS%"=="" set LLAMA_ALIAS=qwen-local
 
 if "%LLAMA_EXE%"=="" set LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe
-if not "%LLAMA_EXE%"=="" for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE=%%~fI"
-if not "%MODEL_FILE%"=="" for %%I in ("%MODEL_FILE%") do set "MODEL_FILE=%%~fI"
 
 if not exist "%LLAMA_EXE%" (
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
