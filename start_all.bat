@@ -66,19 +66,11 @@ if "%LLAMA_PORT%"=="" set "LLAMA_PORT=8080"
 if "%LLAMA_CTX%"=="" set "LLAMA_CTX=32768"
 if "%LLAMA_GPU_LAYERS%"=="" set "LLAMA_GPU_LAYERS=999"
 if "%LLAMA_ALIAS%"=="" set "LLAMA_ALIAS=qwen-local"
-if "%LLAMA_EXE%"=="" set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
-if "%MODEL_FILE%"=="" (
-  set "MODEL_FILE="
-  for %%F in ("%CD%\models\*.gguf") do (
-    if exist "%%~fF" (
-      set "MODEL_FILE=%%~fF"
-      goto :_model_found
-    )
-  )
-  for /f "delims=" %%F in ('dir /b /s "%CD%\models\*.gguf" 2^>nul') do (
-    set "MODEL_FILE=%%~fF"
-    goto :_model_found
-  )
+set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
+set "MODEL_FILE="
+for %%F in ("%CD%\models\*.gguf") do (
+  set "MODEL_FILE=%%~fF"
+  goto :_model_found
 )
 :_model_found
 call :log INFO "Resolved settings: host=%LLAMA_HOST% port=%LLAMA_PORT% ctx=%LLAMA_CTX% alias=%LLAMA_ALIAS%"
@@ -117,22 +109,15 @@ exit /b 0
 
 :check_runtime_inputs
 if not exist "%LLAMA_EXE%" (
-  if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
-    set "LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe"
-    call :log INFO "Using llama-server from build output: %LLAMA_EXE%"
-  ) else (
-    call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
-    echo [ERROR] llama-server.exe not found:
-    echo         %LLAMA_EXE%
-    echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
-    echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
-    exit /b 1
-  )
+  call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
+  echo [ERROR] llama-server.exe not found:
+  echo         %LLAMA_EXE%
+  echo         Download a Windows llama.cpp build and extract to runtime\llama.cpp\
+  exit /b 1
 )
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
-  echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"

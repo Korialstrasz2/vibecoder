@@ -10,34 +10,21 @@ if "%LLAMA_CTX%"=="" set LLAMA_CTX=32768
 if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999
 if "%LLAMA_ALIAS%"=="" set LLAMA_ALIAS=qwen-local
 
-if "%LLAMA_EXE%"=="" set LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe
+set LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe
 
 if not exist "%LLAMA_EXE%" (
-  if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
-    set LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe
-  ) else (
-    echo [ERROR] llama-server.exe not found:
-    echo %LLAMA_EXE%
-    echo.
-    echo Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
-    echo runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
-    pause
-    exit /b 1
-  )
+  echo [ERROR] llama-server.exe not found:
+  echo %LLAMA_EXE%
+  echo.
+  echo Download a Windows CUDA llama.cpp build and extract it into runtime\llama.cpp\
+  pause
+  exit /b 1
 )
 
-if "%MODEL_FILE%"=="" (
-  set MODEL_FILE=
-  for %%F in ("%CD%\models\*.gguf") do (
-    if exist "%%~fF" (
-      set MODEL_FILE=%%~fF
-      goto found_model
-    )
-  )
-  for /f "delims=" %%F in ('dir /b /s "%CD%\models\*.gguf" 2^>nul') do (
-    set MODEL_FILE=%%~fF
-    goto found_model
-  )
+set MODEL_FILE=
+for %%F in ("%CD%\models\*.gguf") do (
+  set MODEL_FILE=%%~fF
+  goto found_model
 )
 
 :found_model
@@ -45,8 +32,7 @@ if "%MODEL_FILE%"=="" (
   echo [ERROR] No .gguf model found in:
   echo %CD%\models
   echo.
-  echo Put one GGUF file in models\ (including subfolders) and run this again.
-  echo Or set MODEL_FILE in local_settings.bat to the model path.
+  echo Put one GGUF file in models\ and run this again.
   pause
   exit /b 1
 )
