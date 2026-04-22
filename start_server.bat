@@ -11,6 +11,9 @@ if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999
 if "%LLAMA_ALIAS%"=="" set LLAMA_ALIAS=qwen-local
 
 if "%LLAMA_EXE%"=="" set LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe
+for /f "tokens=* delims= " %%A in ("%LLAMA_EXE%") do set "LLAMA_EXE=%%~A"
+if "%LLAMA_EXE:~0,1%"=="\"" set "LLAMA_EXE=%LLAMA_EXE:~1%"
+if "%LLAMA_EXE:~-1%"=="\"" set "LLAMA_EXE=%LLAMA_EXE:~0,-1%"
 
 if not exist "%LLAMA_EXE%" (
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
@@ -41,6 +44,9 @@ if "%MODEL_FILE%"=="" (
 )
 
 :found_model
+for /f "tokens=* delims= " %%A in ("%MODEL_FILE%") do set "MODEL_FILE=%%~A"
+if "%MODEL_FILE:~0,1%"=="\"" set "MODEL_FILE=%MODEL_FILE:~1%"
+if "%MODEL_FILE:~-1%"=="\"" set "MODEL_FILE=%MODEL_FILE:~0,-1%"
 if "%MODEL_FILE%"=="" (
   echo [ERROR] No .gguf model found in:
   echo %CD%\models
@@ -69,6 +75,14 @@ pushd "%CD%\runtime\llama.cpp"
   --ctx-size "%LLAMA_CTX%" ^
   --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
   --alias "%LLAMA_ALIAS%"
+set "SERVER_EXIT=%ERRORLEVEL%"
 
 popd
+if not "%SERVER_EXIT%"=="0" (
+  echo.
+  echo [ERROR] llama-server exited with code %SERVER_EXIT%.
+  echo         Keep this window open so you can read the error output.
+  pause
+  endlocal & exit /b %SERVER_EXIT%
+)
 endlocal
