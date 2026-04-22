@@ -83,7 +83,6 @@ REM ------------------------------------------------------------
     echo *.pdb
     echo.
     echo # Local Python environments
-    echo .venv-aider/
     echo .venv/
     echo venv/
     echo env/
@@ -125,8 +124,7 @@ REM ------------------------------------------------------------
     echo .env.*
     echo !.env.example
     echo.
-    echo # OpenCode / Aider local state, if created
-    echo .aider*
+    echo # OpenCode local state, if created
     echo .opencode/
     echo opencode-state/
     echo conversation-history/
@@ -179,7 +177,6 @@ REM This does NOT delete local files.
 REM ------------------------------------------------------------
 git rm -r --cached models >nul 2>nul
 git rm -r --cached runtime\llama.cpp >nul 2>nul
-git rm -r --cached .venv-aider >nul 2>nul
 git rm -r --cached projects >nul 2>nul
 git rm -r --cached logs >nul 2>nul
 
@@ -199,7 +196,6 @@ if exist "PROMPTS.md" git add PROMPTS.md
 if exist "setup_tools.bat" git add setup_tools.bat
 if exist "start_server.bat" git add start_server.bat
 if exist "start_opencode.bat" git add start_opencode.bat
-if exist "start_aider.bat" git add start_aider.bat
 if exist "new_project.bat" git add new_project.bat
 if exist "check_server.bat" git add check_server.bat
 if exist "githubify_vibe_kit.bat" git add githubify_vibe_kit.bat

@@ -25,7 +25,6 @@ runtime/llama.cpp/.gitkeep
 *.pdb
 
 # Local Python environments
-.venv-aider/
 .venv/
 venv/
 env/
@@ -67,8 +66,7 @@ local_settings.bat
 .env.*
 .env.example
 
-# OpenCode / Aider local state, if created
-.aider*
+# OpenCode local state, if created
 .opencode/
 opencode-state/
 conversation-history/

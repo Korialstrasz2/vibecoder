@@ -1,4 +1,4 @@
-# Vibe Coding Portable Kit - Windows + GGUF + llama.cpp + OpenCode/Aider
+# Vibe Coding Portable Kit - Windows + GGUF + llama.cpp + OpenCode
 
 This folder is meant to be portable-ish.
 
@@ -7,7 +7,7 @@ Goal:
 1. Put a GGUF model inside `models/`
 2. Put `llama-server.exe` and its DLLs inside `runtime/llama.cpp/`
 3. Run `start_server.bat`
-4. Run `start_opencode.bat` or `start_aider.bat`
+4. Run `start_opencode.bat`
 5. Create apps inside `projects/`
 
 LAN helper scripts (optional):
@@ -27,7 +27,6 @@ Important:
 - This kit does not include the model or llama.cpp binaries.
 - You must download them yourself.
 - OpenCode is installed globally with npm by `setup_tools.bat`, unless already installed.
-- Aider is installed in a local Python venv under `.venv-aider`.
 
 Expected structure:
 
@@ -45,7 +44,6 @@ vibe-coding-portable/
       opencode.jsonc
   start_server.bat
   start_opencode.bat
-  start_aider.bat
 ```
 
 ## One-click startup (recommended)
@@ -91,11 +89,6 @@ In another terminal:
 start_opencode.bat
 ```
 
-or:
-
-```bat
-start_aider.bat
-```
 
 ## llama-server defaults
 
@@ -142,24 +135,6 @@ Constraints:
 Before editing files, propose the file structure.
 ```
 
-## Suggested first Aider prompt
-
-```text
-Create a new Python project from scratch.
-
-Use:
-- pyproject.toml
-- src layout
-- pytest
-- ruff
-- typer
-- README.md
-
-The app should do X.
-
-Create all needed files, then run tests and fix problems.
-```
-
 ## Notes
 
 If tool calling behaves badly, reduce ambition:
@@ -167,7 +142,6 @@ If tool calling behaves badly, reduce ambition:
 - use shorter context, e.g. 16384 instead of 32768
 - ask for smaller steps
 - commit frequently
-- use Aider if OpenCode gets too chaotic
 
 ## Qwen3.6 vision (OpenCode + llama.cpp)
 
