@@ -270,30 +270,21 @@ if defined MMPROJ_FILE (
 )
 
 set "MMPROJ_FILE="
-if not defined MODEL_VISION_DIR set "MODEL_VISION_DIR=%CD%\model_vision"
 set "MODEL_BASENAME="
 for %%I in ("%MODEL_FILE%") do set "MODEL_BASENAME=%%~nI"
 set "MODEL_NORMALIZED=%MODEL_BASENAME%"
 call :normalize_model_name MODEL_NORMALIZED
-call :log Looking for mmproj in "%MODEL_VISION_DIR%" for model "%MODEL_BASENAME%" (normalized: "%MODEL_NORMALIZED%")
+call :log Looking for mmproj in "%CD%\model_vision" for model "%MODEL_BASENAME%" (normalized: "%MODEL_NORMALIZED%")
 
-if not exist "%MODEL_VISION_DIR%" (
-    call :log No model_vision folder found at "%MODEL_VISION_DIR%"; continuing without mmproj
+if not exist "%CD%\model_vision" (
+    call :log No model_vision folder found; continuing without mmproj
     exit /b 0
 )
 
 set "FIRST_MMPROJ="
-set "FIRST_GGUF="
-for %%F in ("%MODEL_VISION_DIR%\mmproj-*.gguf" "%MODEL_VISION_DIR%\mmproj*.gguf" "%MODEL_VISION_DIR%\*.gguf") do (
+for %%F in ("%CD%\model_vision\mmproj-*.gguf" "%CD%\model_vision\mmproj*.gguf") do (
     if exist "%%~fF" (
-        if /i not "%%~fF"=="%MODEL_FILE%" (
-            if not defined FIRST_GGUF set "FIRST_GGUF=%%~fF"
-            if not defined FIRST_MMPROJ (
-                set "TMP_IS_MMPROJ=0"
-                echo %%~nxF | findstr /i "mmproj" >nul && set "TMP_IS_MMPROJ=1"
-                if "!TMP_IS_MMPROJ!"=="1" set "FIRST_MMPROJ=%%~fF"
-            )
-        )
+        if not defined FIRST_MMPROJ set "FIRST_MMPROJ=%%~fF"
         set "CANDIDATE_NAME=%%~nF"
         set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj-=!"
         set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj_=!"
@@ -301,7 +292,7 @@ for %%F in ("%MODEL_VISION_DIR%\mmproj-*.gguf" "%MODEL_VISION_DIR%\mmproj*.gguf"
         set "CANDIDATE_NORMALIZED=!CANDIDATE_NAME!"
         call :normalize_model_name CANDIDATE_NORMALIZED
         call :log mmproj candidate "%%~nxF" => "!CANDIDATE_NORMALIZED!"
-        if /i "!CANDIDATE_NORMALIZED!"=="!MODEL_NORMALIZED!" if /i not "%%~fF"=="%MODEL_FILE%" (
+        if /i "!CANDIDATE_NORMALIZED!"=="!MODEL_NORMALIZED!" (
             set "MMPROJ_FILE=%%~fF"
             call :log Found matching mmproj: "!MMPROJ_FILE!"
             exit /b 0
@@ -311,12 +302,9 @@ for %%F in ("%MODEL_VISION_DIR%\mmproj-*.gguf" "%MODEL_VISION_DIR%\mmproj*.gguf"
 
 if defined FIRST_MMPROJ (
     set "MMPROJ_FILE=!FIRST_MMPROJ!"
-    call :log Using first available mmproj candidate (no normalized name match): "%MMPROJ_FILE%"
-) else if defined FIRST_GGUF (
-    set "MMPROJ_FILE=!FIRST_GGUF!"
-    call :log WARNING: No mmproj-named GGUF found; using first vision GGUF candidate: "%MMPROJ_FILE%"
+    call :log Using first available mmproj (no normalized name match): "%MMPROJ_FILE%"
 ) else (
-    call :log No GGUF files found in "%MODEL_VISION_DIR%"; continuing without mmproj
+    call :log No mmproj-*.gguf found in model_vision; continuing without mmproj
 )
 exit /b 0
 
