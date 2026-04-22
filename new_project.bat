@@ -34,7 +34,7 @@ echo.
 echo Created project:
 echo %CD%
 echo.
-echo Now run start_opencode.bat or start_aider.bat and cd into:
+echo Now run start_opencode.bat and cd into:
 echo %PROJECT_NAME%
 echo.
 pause

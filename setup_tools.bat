@@ -23,15 +23,6 @@ if errorlevel 1 (
   exit /b 1
 )
 
-where python >nul 2>nul
-if errorlevel 1 (
-  echo [ERROR] Python was not found.
-  echo Install Python 3.11+ or 3.12, then run this again.
-  echo https://www.python.org/downloads/windows/
-  pause
-  exit /b 1
-)
-
 echo Installing/updating OpenCode globally via npm...
 call npm install -g opencode-ai
 if errorlevel 1 (
@@ -42,21 +33,12 @@ if errorlevel 1 (
 )
 
 echo.
-echo Creating local Aider venv...
-if not exist ".venv-aider\Scripts\python.exe" (
-  python -m venv .venv-aider
-)
-
-call ".venv-aider\Scripts\python.exe" -m pip install --upgrade pip
-call ".venv-aider\Scripts\pip.exe" install --upgrade aider-chat
-
-echo.
 echo Setup complete.
 echo Next:
 echo 1. Put llama-server.exe in runtime\llama.cpp\
 echo 2. Put a GGUF model in models\
 echo 3. Run start_server.bat
-echo 4. Run start_opencode.bat or start_aider.bat
+echo 4. Run start_opencode.bat
 echo.
 pause
 endlocal
