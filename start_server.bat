@@ -155,6 +155,52 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
+rem --- Vision mode: auto-detect or use MMPROJ_GGUF ---
+set "MMPROJ_FILE="
+if defined MMPROJ_GGUF (
+    if exist "%MMPROJ_GGUF%" (
+        set "MMPROJ_FILE=%MMPROJ_GGUF%"
+        call :log MMPROJ_GGUF preset: "%MMPROJ_FILE%"
+    ) else (
+        call :log WARNING: MMPROJ_GGUF does not exist: "%MMPROJ_GGUF%"
+    )
+)
+if not defined MMPROJ_FILE (
+    call :log Searching for mmproj alongside model...
+    set "MODEL_DIR=%MODEL_FILE%"
+    for %%I in ("%MODEL_FILE%") do set "MODEL_DIR=%%~dpI"
+    for /r "%MODEL_DIR%%~nxMODEL_FILE%" %%M in (*.gguf) do (
+        for %%P in ("%%~dpM.*mmproj*") do (
+            if /i not "%%~xP"==".gguf" (
+                set "MMPROJ_FILE=%%~fP"
+                goto :found_mmproj
+            )
+        )
+    )
+    rem Try matching model name pattern: model-Q4.gguf -> model-mmproj-Q4.gguf
+    set "MODEL_BASE=%MODEL_FILE%"
+    for %%I in ("%MODEL_FILE%") do set "MODEL_BASE=%%~nI"
+    for %%M in ("%MODEL_DIR%%MODEL_BASE%-*mmproj*.gguf") do (
+        if exist "%%~fM" (
+            set "MMPROJ_FILE=%%~fM"
+            goto :found_mmproj
+        )
+    )
+    rem Also try mmproj without .gguf extension
+    for %%M in ("%MODEL_DIR%%MODEL_BASE%-*mmproj*") do (
+        if exist "%%~fM" (
+            set "MMPROJ_FILE=%%~fM"
+            goto :found_mmproj
+        )
+    )
+    :found_mmproj
+    if not defined MMPROJ_FILE (
+        call :log No mmproj found; vision mode disabled
+    ) else (
+        call :log Found mmproj: "%MMPROJ_FILE%"
+    )
+)
+
 rem --- Update opencode context limit ---
 if defined PROFILE_DISPLAY (
     call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
@@ -165,6 +211,7 @@ if defined PROFILE_DISPLAY (
 echo.
 echo === Starting llama-server ===
 echo Model:       %MODEL_FILE%
+if defined MMPROJ_FILE echo Vision mmproj: %MMPROJ_FILE%
 echo URL:         http://%LLAMA_HOST%:%LLAMA_PORT%/v1
 echo Models API:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
 echo Ctx:         %LLAMA_CTX%
@@ -175,6 +222,7 @@ echo.
 
 call :log Launch command:
 call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE call :log   --mmproj "%MMPROJ_FILE%"
 
 pushd "%LLAMA_EXE_DIR%" >nul 2>&1
 if errorlevel 1 (
@@ -184,13 +232,24 @@ if errorlevel 1 (
     goto :fail
 )
 
-"%LLAMA_EXE%" ^
-  --model "%MODEL_FILE%" ^
-  --host "%LLAMA_HOST%" ^
-  --port "%LLAMA_PORT%" ^
-  --ctx-size "%LLAMA_CTX%" ^
-  --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-  --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%" ^
+      --mmproj "%MMPROJ_FILE%"
+) else (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%"
+)
 
 set "SERVER_EXIT=%ERRORLEVEL%"
 popd >nul 2>&1
