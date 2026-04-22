@@ -155,6 +155,9 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
+rem --- Resolve mmproj for vision support ---
+call :resolve_mmproj
+
 rem --- Update opencode context limit ---
 call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
 powershell -NoProfile -Command ^
@@ -171,6 +174,11 @@ if errorlevel 1 (
 echo.
 echo === Starting llama-server ===
 echo Model:       %MODEL_FILE%
+if defined MMPROJ_FILE (
+    echo mmproj:      %MMPROJ_FILE%
+) else (
+    echo mmproj:      (none - vision not available)
+)
 echo URL:         http://%LLAMA_HOST%:%LLAMA_PORT%/v1
 echo Models API:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
 echo Ctx:         %LLAMA_CTX%
@@ -180,7 +188,11 @@ echo Log:         %LOG_FILE%
 echo.
 
 call :log Launch command:
-call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE (
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --mmproj "%MMPROJ_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+) else (
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+)
 
 pushd "%LLAMA_EXE_DIR%" >nul 2>&1
 if errorlevel 1 (
@@ -190,13 +202,24 @@ if errorlevel 1 (
     goto :fail
 )
 
-"%LLAMA_EXE%" ^
-  --model "%MODEL_FILE%" ^
-  --host "%LLAMA_HOST%" ^
-  --port "%LLAMA_PORT%" ^
-  --ctx-size "%LLAMA_CTX%" ^
-  --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-  --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --mmproj "%MMPROJ_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%"
+) else (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%"
+)
 
 set "SERVER_EXIT=%ERRORLEVEL%"
 popd >nul 2>&1
@@ -234,6 +257,87 @@ goto :_end
 :_end
 pause
 endlocal & exit /b 0
+
+:resolve_mmproj
+if defined MMPROJ_FILE (
+    if exist "%MMPROJ_FILE%" (
+        call :log MMPROJ_FILE preset to "%MMPROJ_FILE%"
+    ) else (
+        call :log WARNING: preset MMPROJ_FILE does not exist: "%MMPROJ_FILE%"
+        set "MMPROJ_FILE="
+    )
+    exit /b 0
+)
+
+set "MMPROJ_FILE="
+set "MODEL_BASENAME="
+for %%I in ("%MODEL_FILE%") do set "MODEL_BASENAME=%%~nI"
+set "MODEL_NORMALIZED=%MODEL_BASENAME%"
+call :normalize_model_name MODEL_NORMALIZED
+call :log Looking for mmproj in "%CD%\model_vision" for model "%MODEL_BASENAME%" (normalized: "%MODEL_NORMALIZED%")
+
+if not exist "%CD%\model_vision" (
+    call :log No model_vision folder found; continuing without mmproj
+    exit /b 0
+)
+
+set "FIRST_MMPROJ="
+for %%F in ("%CD%\model_vision\mmproj-*.gguf" "%CD%\model_vision\mmproj*.gguf") do (
+    if exist "%%~fF" (
+        if not defined FIRST_MMPROJ set "FIRST_MMPROJ=%%~fF"
+        set "CANDIDATE_NAME=%%~nF"
+        set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj-=!"
+        set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj_=!"
+        set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj=!"
+        set "CANDIDATE_NORMALIZED=!CANDIDATE_NAME!"
+        call :normalize_model_name CANDIDATE_NORMALIZED
+        call :log mmproj candidate "%%~nxF" => "!CANDIDATE_NORMALIZED!"
+        if /i "!CANDIDATE_NORMALIZED!"=="!MODEL_NORMALIZED!" (
+            set "MMPROJ_FILE=%%~fF"
+            call :log Found matching mmproj: "!MMPROJ_FILE!"
+            exit /b 0
+        )
+    )
+)
+
+if defined FIRST_MMPROJ (
+    set "MMPROJ_FILE=!FIRST_MMPROJ!"
+    call :log Using first available mmproj (no normalized name match): "%MMPROJ_FILE%"
+) else (
+    call :log No mmproj-*.gguf found in model_vision; continuing without mmproj
+)
+exit /b 0
+
+:normalize_model_name
+set "%~1=!%~1:-bf16=!"
+set "%~1=!%~1:-f16=!"
+set "%~1=!%~1:-BF16=!"
+set "%~1=!%~1:-F16=!"
+set "%~1=!%~1:-Q2_K=!"
+set "%~1=!%~1:-Q3_K_M=!"
+set "%~1=!%~1:-Q3_K_S=!"
+set "%~1=!%~1:-Q4_0=!"
+set "%~1=!%~1:-Q4_1=!"
+set "%~1=!%~1:-Q4_K_M=!"
+set "%~1=!%~1:-Q4_K_S=!"
+set "%~1=!%~1:-Q5_0=!"
+set "%~1=!%~1:-Q5_1=!"
+set "%~1=!%~1:-Q5_K_M=!"
+set "%~1=!%~1:-Q5_K_S=!"
+set "%~1=!%~1:-Q6_K=!"
+set "%~1=!%~1:-Q8_0=!"
+set "%~1=!%~1:-IQ2_XXS=!"
+set "%~1=!%~1:-IQ2_XS=!"
+set "%~1=!%~1:-IQ3_S=!"
+set "%~1=!%~1:-IQ3_M=!"
+set "%~1=!%~1:-IQ3_XXS=!"
+set "%~1=!%~1:-IQ4_NL=!"
+set "%~1=!%~1:-IQ4_XS=!"
+set "%~1=!%~1:-IQ5_NL=!"
+set "%~1=!%~1:-IQ5_XS=!"
+set "%~1=!%~1:-IQ6_XS=!"
+set "%~1=!%~1:-IQ8_NORMAL=!"
+exit /b 0
 
 :log
 echo [%DATE% %TIME%] %*>>"%LOG_FILE%"
