@@ -28,7 +28,7 @@ echo.
 call :run_step "Load settings" :load_settings || goto :fatal
 call :run_step "Check required commands" :check_required_commands || goto :fatal
 call :run_step "Ensure opencode" :ensure_opencode || goto :fatal
-call :run_step "Validate runtime/model files" :check_runtime_inputs || goto :fatal
+call :run_step "Validate runtime/model files (non-blocking)" :check_runtime_inputs_non_blocking || goto :fatal
 call :run_step "Check llama port" :check_port_not_busy || goto :fatal
 call :run_step "Install OpenCode config" :install_opencode_config || goto :fatal
 call :run_step "Start llama-server" :start_server || goto :fatal
@@ -170,6 +170,7 @@ if errorlevel 1 (
 call :log INFO "Runtime validation: verifying MODEL_FILE path"
 call :log INFO "Runtime validation: MODEL_FILE raw (post-normalization)='%MODEL_FILE%'"
 call :path_diag "%MODEL_FILE%" "MODEL_FILE" >>"%RUNTIME_LOG%" 2>&1
+call :log INFO "Runtime validation: MODEL_FILE diagnostics written to runtime log"
 if not defined MODEL_FILE (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
@@ -182,6 +183,7 @@ if not defined MODEL_FILE (
 ) else (
   call :log INFO "MODEL_FILE is set; checking existence"
   call :path_exists "%MODEL_FILE%" "MODEL_FILE"
+  call :log INFO "Runtime validation: MODEL_FILE path_exists exit code=%ERRORLEVEL%"
   if errorlevel 1 (
     call :log ERROR "MODEL_FILE path does not exist: %MODEL_FILE%"
     echo [ERROR] MODEL_FILE points to a file that does not exist:
@@ -209,6 +211,20 @@ call :log INFO "Using model file: %MODEL_FILE%"
 call :log INFO "Runtime validation: success"
 exit /b 0
 
+:check_runtime_inputs_non_blocking
+call :check_runtime_inputs
+if errorlevel 1 (
+  set "RUNTIME_VALIDATION_FAILED=1"
+  call :log WARN "Runtime/model validation failed, but continuing to try server startup"
+  echo [WARN] Runtime/model validation failed, but startup will still try to launch llama-server.
+  echo        Review these logs if startup fails:
+  echo        %MAIN_LOG%
+  echo        %RUNTIME_LOG%
+  exit /b 0
+)
+set "RUNTIME_VALIDATION_FAILED=0"
+exit /b 0
+
 :path_exists
 set "_CHECK_PATH=%~1"
 set "_CHECK_LABEL=%~2"
@@ -217,15 +233,20 @@ set "VC_CHECK_PATH=%_CHECK_PATH%"
 call :log INFO "path_exists[%_CHECK_LABEL%]: checking via cmd if exist: '%_CHECK_PATH%'"
 if exist "%_CHECK_PATH%" (
   call :log INFO "path_exists[%_CHECK_LABEL%]: cmd if exist => true"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_CHECK_PATH'); if([string]::IsNullOrWhiteSpace($p)){Write-Output 'path_exists[%_CHECK_LABEL%]: VC_CHECK_PATH is blank'; exit 2}; $item=Get-Item -LiteralPath $p -ErrorAction SilentlyContinue; if($null -ne $item){Write-Output ('path_exists[%_CHECK_LABEL%]: item type='+$item.GetType().FullName); if($item.PSIsContainer){Write-Output 'path_exists[%_CHECK_LABEL%]: item is a directory'} else {Write-Output ('path_exists[%_CHECK_LABEL%]: item length='+$item.Length)}} else {Write-Output 'path_exists[%_CHECK_LABEL%]: Get-Item returned null'}; if(Test-Path -LiteralPath $p -PathType Leaf){exit 0}else{exit 1}" >>"%RUNTIME_LOG%" 2>&1
+  call :log INFO "path_exists[%_CHECK_LABEL%]: appended successful path diagnostics to runtime log"
   exit /b 0
 )
 call :log WARN "path_exists[%_CHECK_LABEL%]: cmd if exist => false; retrying with PowerShell Test-Path -LiteralPath"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_CHECK_PATH'); if([string]::IsNullOrWhiteSpace($p)){exit 2}; if(Test-Path -LiteralPath $p -PathType Leaf){exit 0}else{exit 1}" >>"%MAIN_LOG%" 2>&1
-if "%ERRORLEVEL%"=="0" (
+set "_PS_CHECK_EXIT=%ERRORLEVEL%"
+call :log INFO "path_exists[%_CHECK_LABEL%]: PowerShell check exit code=%_PS_CHECK_EXIT%"
+if "%_PS_CHECK_EXIT%"=="0" (
   call :log WARN "path_exists[%_CHECK_LABEL%]: PowerShell says true; using this result (possible cmd parsing edge-case)"
   exit /b 0
 )
-call :log ERROR "path_exists[%_CHECK_LABEL%]: both cmd and PowerShell checks report missing"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_CHECK_PATH'); Write-Output ('path_exists[%_CHECK_LABEL%]: debug raw path='+$p); if($null -eq $p){Write-Output 'path_exists[%_CHECK_LABEL%]: debug path is null'} else {Write-Output ('path_exists[%_CHECK_LABEL%]: debug length='+$p.Length); $codes=($p.ToCharArray() | ForEach-Object {[int]$_}) -join ','; Write-Output ('path_exists[%_CHECK_LABEL%]: debug char codes='+$codes)}" >>"%RUNTIME_LOG%" 2>&1
+call :log ERROR "path_exists[%_CHECK_LABEL%]: both cmd and PowerShell checks report missing; debug char-code trace appended to runtime log"
 exit /b 1
 
 
@@ -253,6 +274,14 @@ if "%_VAR_VALUE:~-1%"=="""" (
   goto normalize_path_var_strip_quotes_tail
 )
 :normalize_path_var_assign
+if "%_VAR_VALUE:~0,1%"=="'" set "_VAR_VALUE=%_VAR_VALUE:~1%"
+:normalize_path_var_strip_single_quotes_tail
+if not defined _VAR_VALUE goto normalize_path_var_assign_done
+if "%_VAR_VALUE:~-1%"=="'" (
+  set "_VAR_VALUE=%_VAR_VALUE:~0,-1%"
+  goto normalize_path_var_strip_single_quotes_tail
+)
+:normalize_path_var_assign_done
 call set "%_VAR_NAME%=%_VAR_VALUE%"
 call :log INFO "normalize_path_var: %~1 normalized value='%_VAR_VALUE%'"
 exit /b 0
@@ -268,7 +297,7 @@ if not defined _DIAG_PATH (
 )
 echo [%_DIAG_LABEL%] expanded value: '%_DIAG_PATH%'
 set "VC_DIAG_PATH=%_DIAG_PATH%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_DIAG_PATH'); Write-Output '[%_DIAG_LABEL%] char length: ' + $p.Length; if(Test-Path -LiteralPath $p -PathType Leaf){Write-Output '[%_DIAG_LABEL%] powershell Test-Path => true'} else {Write-Output '[%_DIAG_LABEL%] powershell Test-Path => false'}"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_DIAG_PATH'); if($null -eq $p){Write-Output '[%_DIAG_LABEL%] char length: <null>'} else {Write-Output ('[%_DIAG_LABEL%] char length: '+$p.Length); $codes=($p.ToCharArray() | ForEach-Object {[int]$_}) -join ','; Write-Output ('[%_DIAG_LABEL%] char codes: '+$codes)}; if(Test-Path -LiteralPath $p -PathType Leaf){Write-Output '[%_DIAG_LABEL%] powershell Test-Path => true'} else {Write-Output '[%_DIAG_LABEL%] powershell Test-Path => false'}"
 if exist "%_DIAG_PATH%" (
   echo [%_DIAG_LABEL%] cmd if exist => true
 ) else (
@@ -320,6 +349,19 @@ if errorlevel 1 (
   call :log ERROR "Failed to launch llama-server process"
   echo [ERROR] Failed to launch llama-server process.
   exit /b 1
+)
+call :log INFO "Quick server startup probe: waiting 5 seconds before initial status check"
+echo [INFO] Waiting 5 seconds, then checking if llama-server appears reachable...
+timeout /t 5 /nobreak >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $null = Invoke-RestMethod -Uri 'http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models' -TimeoutSec 2; exit 0 } catch { exit 1 }" >>"%MAIN_LOG%" 2>&1
+if errorlevel 1 (
+  call :log WARN "Quick server startup probe did not confirm readiness after 5 seconds"
+  echo [WARN] Could not confirm llama-server readiness after 5 seconds.
+  echo        This can be normal while large models are still loading.
+  echo        Startup will continue with full health wait checks.
+) else (
+  call :log INFO "Quick server startup probe succeeded after 5 seconds"
+  echo [OK] llama-server responded within 5 seconds.
 )
 exit /b 0
 
