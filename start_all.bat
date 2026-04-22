@@ -116,7 +116,6 @@ call :log INFO "opencode command is available"
 exit /b 0
 
 :check_runtime_inputs
-set "RUNTIME_ERR=0"
 call :log INFO "Runtime validation: begin"
 call :log INFO "Runtime validation: normalizing LLAMA_EXE"
 call :normalize_path_var LLAMA_EXE
@@ -157,7 +156,7 @@ if not exist "%LLAMA_EXE%" (
       echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
       echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
     )
-    set "RUNTIME_ERR=1"
+    exit /b 1
   )
 ) else (
   call :log INFO "LLAMA_EXE exists: %LLAMA_EXE%"
@@ -171,7 +170,7 @@ if "%MODEL_FILE%"=="" (
     echo         models\ directory does not exist yet.
     echo         Create models\ and copy at least one .gguf model into it.
   )
-  set "RUNTIME_ERR=1"
+  exit /b 1
 ) else (
   call :log INFO "MODEL_FILE is set; checking existence"
   if not exist "%MODEL_FILE%" (
@@ -179,7 +178,7 @@ if "%MODEL_FILE%"=="" (
     echo [ERROR] MODEL_FILE points to a file that does not exist:
     echo         %MODEL_FILE%
     echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
-    set "RUNTIME_ERR=1"
+    exit /b 1
   ) else (
     call :log INFO "MODEL_FILE exists: %MODEL_FILE%"
     call :log INFO "Runtime validation: extracting model extension"
@@ -192,16 +191,6 @@ if "%MODEL_FILE%"=="" (
       echo        llama-server usually expects GGUF models. Verify this is intentional.
     )
   )
-)
-call :log INFO "Runtime validation: RUNTIME_ERR=%RUNTIME_ERR%"
-if "%RUNTIME_ERR%"=="1" (
-  call :log INFO "Runtime validation failed; enumerating models\*.gguf for diagnostics"
-  echo [INFO] Detected .gguf files under models\ (if any):
-  for /f "delims=" %%F in ('dir /b "%CD%\models\*.gguf" 2^>nul') do echo        - %%F
-  echo [INFO] Tip: You can override both paths in local_settings.bat:
-  echo        set LLAMA_EXE=...
-  echo        set MODEL_FILE=...
-  exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
 call :log INFO "Runtime validation: success"
