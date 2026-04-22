@@ -70,8 +70,8 @@ rem --- Context profile selection ---
 if defined CONTEXT_PROFILE (
     call :log Using preset profile: %CONTEXT_PROFILE%
     if /i "%CONTEXT_PROFILE%"=="short" (
-        set "LLAMA_CTX=32768"
-        set "PROFILE_DISPLAY=short (32k)"
+        set "LLAMA_CTX=16384"
+        set "PROFILE_DISPLAY=short (16k)"
     ) else if /i "%CONTEXT_PROFILE%"=="long" (
         set "LLAMA_CTX=65536"
         set "PROFILE_DISPLAY=long (64k)"
@@ -88,14 +88,14 @@ if not defined LLAMA_CTX set "LLAMA_CTX=32768"
 if not defined CONTEXT_PROFILE (
     echo.
     echo --- Context Profile ---
-    echo 1. short  - 32k context  (fast, good for simple tasks)
+    echo 1. short  - 16k context  (fast, good for simple tasks)
     echo 2. long   - 64k context  (balanced)
     echo 3. ultra  - 128k context (slower, for complex/large codebases)
     echo.
     choice /t 5 /d 2 /n /c 123 /m "Choose profile: "
     if errorlevel 3 ( set "LLAMA_CTX=131072" & set "PROFILE_DISPLAY=ultra (128k)" ) else (
     if errorlevel 2 ( set "LLAMA_CTX=65536"  & set "PROFILE_DISPLAY=long (64k)" ) else (
-    if errorlevel 1 ( set "LLAMA_CTX=32768"  & set "PROFILE_DISPLAY=short (32k)" ) ) )
+    if errorlevel 1 ( set "LLAMA_CTX=16384"  & set "PROFILE_DISPLAY=short (16k)" ) ) )
 )
 
 if defined PROFILE_DISPLAY (
@@ -155,16 +155,10 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
-rem --- Copy matching context profile ---
+rem --- Update opencode context limit ---
 if defined PROFILE_DISPLAY (
-    call :log Copying context profile to opencode.jsonc (%PROFILE_DISPLAY%)
-    if /i "%PROFILE_DISPLAY%"=="short (32k)" (
-        copy /Y "%CD%\config\opencode\profiles\short.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
-    ) else if /i "%PROFILE_DISPLAY%"=="long (64k)" (
-        copy /Y "%CD%\config\opencode\profiles\long.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
-    ) else if /i "%PROFILE_DISPLAY%"=="ultra (128k)" (
-        copy /Y "%CD%\config\opencode\profiles\ultra.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
-    )
+    call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
+    powershell -NoProfile -Command "(Get-Content '%CD%\config\opencode\opencode.jsonc') -replace '""context"": \d+', '\"context\": %LLAMA_CTX%' | Set-Content '%CD%\config\opencode\opencode.jsonc'"
     call :log opencode.jsonc updated
 )
 
