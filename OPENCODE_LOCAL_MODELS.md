@@ -90,3 +90,60 @@ Then restart `start_server.bat` (or `start_all.bat`) and keep OpenCode model set
 2. Wait for the health check to pass.
 3. Work inside `projects\` with OpenCode.
 4. If you change model alias/port, restart server and re-check OpenCode Settings.
+
+## OpenCode + Qwen3.6 vision with local llama-server
+
+### Start llama-server (image-capable)
+
+Use the new script from this repository root:
+
+```bash
+# Mode A: Hugging Face mode (llama.cpp auto-handles required files when supported)
+./scripts/run-llama-qwen36-vision.sh
+
+# Mode B: Manual GGUF mode (set both model + mmproj)
+LLAMA_MODE=gguf \
+MODEL_GGUF=/path/to/model.gguf \
+MMPROJ_GGUF=/path/to/mmproj.gguf \
+./scripts/run-llama-qwen36-vision.sh
+```
+
+Equivalent llama-server commands:
+
+```bash
+llama-server -hf ggml-org/Qwen3.6-35B-A3B-GGUF --host 127.0.0.1 --port 8080
+```
+
+```bash
+llama-server -m "$MODEL_GGUF" --mmproj "$MMPROJ_GGUF" --host 127.0.0.1 --port 8080
+```
+
+### Start OpenCode
+
+Run OpenCode after your server is up:
+
+```bat
+start_opencode.bat
+```
+
+or run `opencode` directly in your active project folder.
+
+### Verify image input works
+
+Run the smoke test:
+
+```bash
+./scripts/smoke-test-vision-chat.sh
+```
+
+It posts a text + image request to `http://127.0.0.1:8080/v1/chat/completions`.
+
+### If OpenCode says the model does not support images
+
+Most likely fixes:
+
+1. Ensure the OpenCode model entry includes:
+   - `"modalities": { "input": ["text", "image"], "output": ["text"] }`
+2. If using manual GGUF mode, confirm `--mmproj` is provided and points to a valid multimodal projector GGUF.
+3. Confirm OpenCode is using the expected model id (`llama.cpp/qwen3.6-vision`) and base URL (`http://127.0.0.1:8080/v1`).
+4. Restart llama-server and OpenCode after config changes.

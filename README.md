@@ -163,3 +163,16 @@ If tool calling behaves badly, reduce ambition:
 - ask for smaller steps
 - commit frequently
 - use Aider if OpenCode gets too chaotic
+
+## Qwen3.6 vision (OpenCode + llama.cpp)
+
+For local multimodal (text + image) usage with OpenCode and llama-server, see:
+
+- [`OPENCODE_LOCAL_MODELS.md`](OPENCODE_LOCAL_MODELS.md#opencode--qwen36-vision-with-local-llama-server)
+
+Quick start:
+
+```bash
+./scripts/run-llama-qwen36-vision.sh
+./scripts/smoke-test-vision-chat.sh
+```
