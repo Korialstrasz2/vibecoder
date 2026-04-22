@@ -11,14 +11,6 @@ if "%LLAMA_GPU_LAYERS%"=="" set LLAMA_GPU_LAYERS=999
 if "%LLAMA_ALIAS%"=="" set LLAMA_ALIAS=qwen-local
 
 set LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe
-if not exist "%LLAMA_EXE%" (
-  for /f "delims=" %%F in ('dir /b /s /a:-d "%CD%\runtime\llama.cpp\llama-server*.exe" 2^>nul') do (
-    set LLAMA_EXE=%%~fF
-    goto found_llama_exe
-  )
-)
-
-:found_llama_exe
 
 if not exist "%LLAMA_EXE%" (
   echo [ERROR] llama-server.exe not found:
@@ -30,8 +22,8 @@ if not exist "%LLAMA_EXE%" (
 )
 
 set MODEL_FILE=
-for /f "delims=" %%F in ('dir /b /a:-d "%CD%\models\*.gguf" 2^>nul') do (
-  set MODEL_FILE=%CD%\models\%%~nxF
+for %%F in ("%CD%\models\*.gguf") do (
+  set MODEL_FILE=%%~fF
   goto found_model
 )
 
