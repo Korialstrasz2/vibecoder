@@ -163,7 +163,7 @@ if "%MODEL_FILE%"=="" (
     set "RUNTIME_ERR=1"
   ) else (
     for %%E in ("%MODEL_FILE%") do set "MODEL_EXT=%%~xE"
-    if /I not "%MODEL_EXT%"==".gguf" (
+    if /I not "!MODEL_EXT!"==".gguf" (
       call :log WARN "MODEL_FILE does not end with .gguf: %MODEL_FILE%"
       echo [WARN] MODEL_FILE does not have .gguf extension:
       echo        %MODEL_FILE%
