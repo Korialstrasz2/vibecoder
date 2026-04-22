@@ -347,13 +347,11 @@ echo [INFO] Starting llama-server...
 set "SERVER_LAUNCHER=%CD%\logs\launch_llama_%RUN_ID%.bat"
 >"%SERVER_LAUNCHER%" echo @echo off
 >>"%SERVER_LAUNCHER%" echo setlocal
->>"%SERVER_LAUNCHER%" echo cd /d "%CD%\runtime\llama.cpp"
->>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: starting llama-server ^>^> "%SERVER_LOG%"
->>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: exe="%LLAMA_EXE%" ^>^> "%SERVER_LOG%"
->>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: model="%MODEL_FILE%" ^>^> "%SERVER_LOG%"
->>"%SERVER_LAUNCHER%" echo "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%" ^>^> "%SERVER_LOG%" 2^>^&1
+>>"%SERVER_LAUNCHER%" echo cd /d "%CD%"
+>>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: starting start_server.bat ^> "%SERVER_LOG%"
+>>"%SERVER_LAUNCHER%" echo call "%CD%\start_server.bat" ^>^> "%SERVER_LOG%" 2^>^&1
 >>"%SERVER_LAUNCHER%" echo set "SERVER_EXIT=%%errorlevel%%"
->>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: llama-server exited with code %%SERVER_EXIT%% ^>^> "%SERVER_LOG%"
+>>"%SERVER_LAUNCHER%" echo echo [%%date%% %%time%%] launcher: start_server.bat exited with code %%SERVER_EXIT%% ^>^> "%SERVER_LOG%"
 >>"%SERVER_LAUNCHER%" echo endlocal ^& exit /b %%SERVER_EXIT%%
 start "vibecoder-llama-server" cmd /c "\"%SERVER_LAUNCHER%\""
 if errorlevel 1 (
