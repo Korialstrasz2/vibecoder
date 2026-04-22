@@ -67,8 +67,6 @@ if "%LLAMA_CTX%"=="" set "LLAMA_CTX=32768"
 if "%LLAMA_GPU_LAYERS%"=="" set "LLAMA_GPU_LAYERS=999"
 if "%LLAMA_ALIAS%"=="" set "LLAMA_ALIAS=qwen-local"
 if "%LLAMA_EXE%"=="" set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
-if not "%LLAMA_EXE%"=="" for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE=%%~fI"
-if not "%MODEL_FILE%"=="" for %%I in ("%MODEL_FILE%") do set "MODEL_FILE=%%~fI"
 if "%MODEL_FILE%"=="" (
   set "MODEL_FILE="
   for %%F in ("%CD%\models\*.gguf") do (
