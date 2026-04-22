@@ -156,10 +156,16 @@ call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
 rem --- Update opencode context limit ---
-if defined PROFILE_DISPLAY (
-    call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
-    powershell -NoProfile -Command "(Get-Content '%CD%\config\opencode\opencode.jsonc') -replace '""context"": \d+', '\"context\": %LLAMA_CTX%' | Set-Content '%CD%\config\opencode\opencode.jsonc'"
-    call :log opencode.jsonc updated
+call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
+powershell -NoProfile -Command ^
+  "$p='%CD%\config\opencode\opencode.jsonc';" ^
+  "$text = Get-Content -Raw $p;" ^
+  "$updated = [regex]::Replace($text, '\"context\"\s*:\s*\d+', ('\"context\": ' + %LLAMA_CTX%));" ^
+  "Set-Content -Path $p -Value $updated;"
+if errorlevel 1 (
+    call :log WARNING: failed to update opencode.jsonc context limit
+) else (
+    call :log opencode.jsonc context limit updated
 )
 
 echo.
