@@ -117,6 +117,8 @@ exit /b 0
 
 :check_runtime_inputs
 set "RUNTIME_ERR=0"
+set "LLAMA_EXE=%LLAMA_EXE:"=%"
+set "MODEL_FILE=%MODEL_FILE:"=%"
 call :log INFO "Runtime validation input: LLAMA_EXE=%LLAMA_EXE%"
 call :log INFO "Runtime validation input: MODEL_FILE=%MODEL_FILE%"
 if not exist "%CD%\runtime" (
