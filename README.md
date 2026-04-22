@@ -43,6 +43,21 @@ vibe-coding-portable/
   start_aider.bat
 ```
 
+## One-click startup (recommended)
+
+Use `start_all.bat` for a full startup flow with validation and logs. It will:
+
+1. Load `local_settings.bat` when present.
+2. Validate required commands (`powershell`, `node`, `npm`, `opencode`).
+3. Auto-install OpenCode (`opencode-ai`) if missing.
+4. Validate `runtime\llama.cpp\llama-server.exe` and `models\*.gguf`.
+5. Install OpenCode config to `%APPDATA%\opencode\opencode.jsonc`.
+6. Launch llama-server in a separate window.
+7. Poll `http://127.0.0.1:8080/v1/models` (or your configured host/port) until healthy.
+8. Launch OpenCode inside `projects\`.
+
+Logs are written to `logs\startup_*.log` and `logs\llama_server_*.log`.
+
 ## First run
 
 1. Install NVIDIA drivers.
