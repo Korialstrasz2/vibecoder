@@ -281,9 +281,10 @@ if not exist "%CD%\model_vision" (
     exit /b 0
 )
 
-set "MMPROJ_MATCH_FOUND="
+set "FIRST_MMPROJ="
 for %%F in ("%CD%\model_vision\mmproj-*.gguf" "%CD%\model_vision\mmproj*.gguf") do (
     if exist "%%~fF" (
+        if not defined FIRST_MMPROJ set "FIRST_MMPROJ=%%~fF"
         set "CANDIDATE_NAME=%%~nF"
         set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj-=!"
         set "CANDIDATE_NAME=!CANDIDATE_NAME:mmproj_=!"
@@ -293,36 +294,17 @@ for %%F in ("%CD%\model_vision\mmproj-*.gguf" "%CD%\model_vision\mmproj*.gguf") 
         call :log mmproj candidate "%%~nxF" => "!CANDIDATE_NORMALIZED!"
         if /i "!CANDIDATE_NORMALIZED!"=="!MODEL_NORMALIZED!" (
             set "MMPROJ_FILE=%%~fF"
-            set "MMPROJ_MATCH_FOUND=1"
             call :log Found matching mmproj: "!MMPROJ_FILE!"
             exit /b 0
-        )
-        call :tokenize_name MODEL_TOKENIZED MODEL_NORMALIZED
-        call :tokenize_name CANDIDATE_TOKENIZED CANDIDATE_NORMALIZED
-        call :log tokenized compare model="!MODEL_TOKENIZED!" candidate="!CANDIDATE_TOKENIZED!"
-        if not "!MODEL_TOKENIZED!"=="" if not "!CANDIDATE_TOKENIZED!"=="" (
-            echo "!MODEL_TOKENIZED!" | findstr /i /c:"!CANDIDATE_TOKENIZED!" >nul 2>&1
-            if not errorlevel 1 (
-                set "MMPROJ_FILE=%%~fF"
-                set "MMPROJ_MATCH_FOUND=1"
-                call :log Found fuzzy-matching mmproj (candidate in model): "!MMPROJ_FILE!"
-                exit /b 0
-            )
-            echo "!CANDIDATE_TOKENIZED!" | findstr /i /c:"!MODEL_TOKENIZED!" >nul 2>&1
-            if not errorlevel 1 (
-                set "MMPROJ_FILE=%%~fF"
-                set "MMPROJ_MATCH_FOUND=1"
-                call :log Found fuzzy-matching mmproj (model in candidate): "!MMPROJ_FILE!"
-                exit /b 0
-            )
         )
     )
 )
 
-if defined MMPROJ_MATCH_FOUND (
-    call :log mmproj match found
+if defined FIRST_MMPROJ (
+    set "MMPROJ_FILE=!FIRST_MMPROJ!"
+    call :log Using first available mmproj (no normalized name match): "%MMPROJ_FILE%"
 ) else (
-    call :log No matching mmproj found in model_vision; continuing without mmproj to avoid mismatched projector crashes
+    call :log No mmproj-*.gguf found in model_vision; continuing without mmproj
 )
 exit /b 0
 
@@ -355,18 +337,6 @@ set "%~1=!%~1:-IQ5_NL=!"
 set "%~1=!%~1:-IQ5_XS=!"
 set "%~1=!%~1:-IQ6_XS=!"
 set "%~1=!%~1:-IQ8_NORMAL=!"
-exit /b 0
-
-:tokenize_name
-set "%~1=!%~2!"
-set "%~1=!%~1:.=!"
-set "%~1=!%~1:_=!"
-set "%~1=!%~1:-=!"
-set "%~1=!%~1: =!"
-set "%~1=!%~1:(=!"
-set "%~1=!%~1:)=!"
-set "%~1=!%~1:[=!"
-set "%~1=!%~1:]=!"
 exit /b 0
 
 :log
