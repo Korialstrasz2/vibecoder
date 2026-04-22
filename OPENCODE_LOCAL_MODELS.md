@@ -147,13 +147,3 @@ Most likely fixes:
 2. If using manual GGUF mode, confirm `--mmproj` is provided and points to a valid multimodal projector GGUF.
 3. Confirm OpenCode is using the expected model id (`llama.cpp/qwen3.6-vision`) and base URL (`http://127.0.0.1:8080/v1`).
 4. Restart llama-server and OpenCode after config changes.
-
-### `model_vision` folder behavior (Windows starter scripts)
-
-`start_server.bat` automatically looks for a projector GGUF in `model_vision\`:
-
-1. First it tries to match by filename against your selected base model.
-2. If no match is found, it picks the first file with `mmproj` in the name.
-3. If there is still no `mmproj`-named file, it falls back to the first `.gguf` in `model_vision\` and logs a warning.
-
-For best results, keep a single projector file in `model_vision\` and include `mmproj` in the filename (for example `mmproj-qwen3.6-35b-f16.gguf`).
