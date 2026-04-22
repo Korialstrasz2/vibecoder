@@ -122,17 +122,40 @@ if not exist "%LLAMA_EXE%" (
     call :log INFO "Using llama-server from build output: %LLAMA_EXE%"
   ) else (
     call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
+    call :log INFO "Diagnostics: checked llama-server paths:"
+    call :log INFO "  1) %LLAMA_EXE%"
+    call :log INFO "  2) %CD%\runtime\llama.cpp\build\bin\llama-server.exe"
+    call :list_candidates "runtime\llama.cpp" "llama*.exe"
     echo [ERROR] llama-server.exe not found:
     echo         %LLAMA_EXE%
     echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
     echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
+    echo         Diagnostic candidates (if any) were written to:
+    echo         %MAIN_LOG%
     exit /b 1
   )
 )
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
+  call :log INFO "Diagnostics: searched for models in:"
+  call :log INFO "  1) %CD%\models\*.gguf"
+  call :log INFO "  2) %CD%\models\**\*.gguf"
+  call :list_candidates "models" "*.gguf"
   echo [ERROR] No model file found in models\ (expected *.gguf)
   echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
+  echo         Diagnostic candidates (if any) were written to:
+  echo         %MAIN_LOG%
+  exit /b 1
+)
+if not exist "%MODEL_FILE%" (
+  call :log ERROR "Configured MODEL_FILE does not exist: %MODEL_FILE%"
+  call :log INFO "Diagnostics: MODEL_FILE was set but missing on disk"
+  call :list_candidates "models" "*.gguf"
+  echo [ERROR] MODEL_FILE is set but the file does not exist:
+  echo         %MODEL_FILE%
+  echo         Fix MODEL_FILE in local_settings.bat or place a valid .gguf file in models\
+  echo         Diagnostic candidates (if any) were written to:
+  echo         %MAIN_LOG%
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
@@ -235,6 +258,25 @@ set "STAMP="
 for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss\""') do set "STAMP=%%I"
 if not defined STAMP set "STAMP=%DATE% %TIME%"
 >>"%MAIN_LOG%" echo [%STAMP%] [%LEVEL%] %MSG%
+exit /b 0
+
+:list_candidates
+set "TARGET_DIR=%~1"
+set "TARGET_GLOB=%~2"
+if "%TARGET_DIR%"=="" exit /b 0
+if "%TARGET_GLOB%"=="" exit /b 0
+if not exist "%CD%\%TARGET_DIR%" (
+  call :log INFO "Diagnostics: directory not found: %CD%\%TARGET_DIR%"
+  exit /b 0
+)
+call :log INFO "Diagnostics: listing up to 20 candidates for %TARGET_GLOB% under %CD%\%TARGET_DIR%"
+set /a CAND_COUNT=0
+for /f "delims=" %%I in ('dir /b /s "%CD%\%TARGET_DIR%\%TARGET_GLOB%" 2^>nul') do (
+  set /a CAND_COUNT+=1
+  if !CAND_COUNT! LEQ 20 call :log INFO "  candidate !CAND_COUNT!: %%~fI"
+)
+if %CAND_COUNT% EQU 0 call :log INFO "  (no candidates found)"
+if %CAND_COUNT% GTR 20 call :log INFO "  ...and %CAND_COUNT% total candidates"
 exit /b 0
 
 :fatal
