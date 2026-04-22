@@ -70,8 +70,8 @@ rem --- Context profile selection ---
 if defined CONTEXT_PROFILE (
     call :log Using preset profile: %CONTEXT_PROFILE%
     if /i "%CONTEXT_PROFILE%"=="short" (
-        set "LLAMA_CTX=32768"
-        set "PROFILE_DISPLAY=short (32k)"
+        set "LLAMA_CTX=16384"
+        set "PROFILE_DISPLAY=short (16k)"
     ) else if /i "%CONTEXT_PROFILE%"=="long" (
         set "LLAMA_CTX=65536"
         set "PROFILE_DISPLAY=long (64k)"
@@ -88,14 +88,14 @@ if not defined LLAMA_CTX set "LLAMA_CTX=32768"
 if not defined CONTEXT_PROFILE (
     echo.
     echo --- Context Profile ---
-    echo 1. short  - 32k context  (fast, good for simple tasks)
+    echo 1. short  - 16k context  (fast, good for simple tasks)
     echo 2. long   - 64k context  (balanced)
     echo 3. ultra  - 128k context (slower, for complex/large codebases)
     echo.
     choice /t 5 /d 2 /n /c 123 /m "Choose profile: "
     if errorlevel 3 ( set "LLAMA_CTX=131072" & set "PROFILE_DISPLAY=ultra (128k)" ) else (
     if errorlevel 2 ( set "LLAMA_CTX=65536"  & set "PROFILE_DISPLAY=long (64k)" ) else (
-    if errorlevel 1 ( set "LLAMA_CTX=32768"  & set "PROFILE_DISPLAY=short (32k)" ) ) )
+    if errorlevel 1 ( set "LLAMA_CTX=16384"  & set "PROFILE_DISPLAY=short (16k)" ) ) )
 )
 
 if defined PROFILE_DISPLAY (
@@ -155,22 +155,63 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
-rem --- Copy matching context profile ---
-if defined PROFILE_DISPLAY (
-    call :log Copying context profile to opencode.jsonc (%PROFILE_DISPLAY%)
-    if /i "%PROFILE_DISPLAY%"=="short (32k)" (
-        copy /Y "%CD%\config\opencode\profiles\short.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
-    ) else if /i "%PROFILE_DISPLAY%"=="long (64k)" (
-        copy /Y "%CD%\config\opencode\profiles\long.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
-    ) else if /i "%PROFILE_DISPLAY%"=="ultra (128k)" (
-        copy /Y "%CD%\config\opencode\profiles\ultra.jsonc" "%CD%\config\opencode\opencode.jsonc" >nul
+rem --- Vision mode: auto-detect or use MMPROJ_GGUF ---
+set "MMPROJ_FILE="
+if defined MMPROJ_GGUF (
+    if exist "%MMPROJ_GGUF%" (
+        set "MMPROJ_FILE=%MMPROJ_GGUF%"
+        call :log MMPROJ_GGUF preset: "%MMPROJ_FILE%"
+    ) else (
+        call :log WARNING: MMPROJ_GGUF does not exist: "%MMPROJ_GGUF%"
     )
+)
+if not defined MMPROJ_FILE (
+    call :log Searching for mmproj alongside model...
+    set "MODEL_DIR=%MODEL_FILE%"
+    for %%I in ("%MODEL_FILE%") do set "MODEL_DIR=%%~dpI"
+    for /r "%MODEL_DIR%%~nxMODEL_FILE%" %%M in (*.gguf) do (
+        for %%P in ("%%~dpM.*mmproj*") do (
+            if /i not "%%~xP"==".gguf" (
+                set "MMPROJ_FILE=%%~fP"
+                goto :found_mmproj
+            )
+        )
+    )
+    rem Try matching model name pattern: model-Q4.gguf -> model-mmproj-Q4.gguf
+    set "MODEL_BASE=%MODEL_FILE%"
+    for %%I in ("%MODEL_FILE%") do set "MODEL_BASE=%%~nI"
+    for %%M in ("%MODEL_DIR%%MODEL_BASE%-*mmproj*.gguf") do (
+        if exist "%%~fM" (
+            set "MMPROJ_FILE=%%~fM"
+            goto :found_mmproj
+        )
+    )
+    rem Also try mmproj without .gguf extension
+    for %%M in ("%MODEL_DIR%%MODEL_BASE%-*mmproj*") do (
+        if exist "%%~fM" (
+            set "MMPROJ_FILE=%%~fM"
+            goto :found_mmproj
+        )
+    )
+    :found_mmproj
+    if not defined MMPROJ_FILE (
+        call :log No mmproj found; vision mode disabled
+    ) else (
+        call :log Found mmproj: "%MMPROJ_FILE%"
+    )
+)
+
+rem --- Update opencode context limit ---
+if defined PROFILE_DISPLAY (
+    call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
+    powershell -NoProfile -Command "(Get-Content '%CD%\config\opencode\opencode.jsonc') -replace '""context"": \d+', '\"context\": %LLAMA_CTX%' | Set-Content '%CD%\config\opencode\opencode.jsonc'"
     call :log opencode.jsonc updated
 )
 
 echo.
 echo === Starting llama-server ===
 echo Model:       %MODEL_FILE%
+if defined MMPROJ_FILE echo Vision mmproj: %MMPROJ_FILE%
 echo URL:         http://%LLAMA_HOST%:%LLAMA_PORT%/v1
 echo Models API:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
 echo Ctx:         %LLAMA_CTX%
@@ -181,6 +222,7 @@ echo.
 
 call :log Launch command:
 call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE call :log   --mmproj "%MMPROJ_FILE%"
 
 pushd "%LLAMA_EXE_DIR%" >nul 2>&1
 if errorlevel 1 (
@@ -190,13 +232,24 @@ if errorlevel 1 (
     goto :fail
 )
 
-"%LLAMA_EXE%" ^
-  --model "%MODEL_FILE%" ^
-  --host "%LLAMA_HOST%" ^
-  --port "%LLAMA_PORT%" ^
-  --ctx-size "%LLAMA_CTX%" ^
-  --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-  --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%" ^
+      --mmproj "%MMPROJ_FILE%"
+) else (
+    "%LLAMA_EXE%" ^
+      --model "%MODEL_FILE%" ^
+      --host "%LLAMA_HOST%" ^
+      --port "%LLAMA_PORT%" ^
+      --ctx-size "%LLAMA_CTX%" ^
+      --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+      --alias "%LLAMA_ALIAS%"
+)
 
 set "SERVER_EXIT=%ERRORLEVEL%"
 popd >nul 2>&1
