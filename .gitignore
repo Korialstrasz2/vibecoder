@@ -1,0 +1,84 @@
+# ============================================================
+# Vibe Coding Portable Kit - Git Ignore
+# ============================================================
+
+# Models: never commit GGUFs or model weights
+models/*
+models/PUT_GGUF_MODEL_HERE.txt
+models/.gitkeep
+
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+
+# llama.cpp runtime binaries
+runtime/llama.cpp/*
+runtime/llama.cpp/PUT_LLAMA_CPP_BINARIES_HERE.txt
+runtime/llama.cpp/.gitkeep
+
+*.exe
+*.dll
+*.lib
+*.pdb
+
+# Local Python environments
+.venv-aider/
+.venv/
+venv/
+env/
+ENV/
+
+# Generated/user projects
+# Recommended: each generated app should be its own separate repo
+projects/*
+projects/.gitkeep
+
+# Logs and temporary files
+logs/*
+logs/.gitkeep
+tmp/
+temp/
+.cache/
+
+# Node/npm caches
+node_modules/
+npm-cache/
+.npm/
+
+# Python cache/test/lint artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local settings / private overrides
+local_settings.bat
+.env
+.env.*
+.env.example
+
+# OpenCode / Aider local state, if created
+.aider*
+.opencode/
+opencode-state/
+conversation-history/
+*.log
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
