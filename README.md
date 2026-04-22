@@ -114,47 +114,6 @@ and model:
 llama.cpp/qwen-local
 ```
 
-## Vision models (image input)
-
-The kit supports vision-capable models (e.g. Qwen3.6 vision family) via the dedicated launcher scripts in `scripts/`.
-
-### Option 1: Hugging Face auto-download (recommended)
-
-```bat
-scripts\run-llama-qwen36-vision.bat
-```
-
-This downloads the model and mmproj automatically from Hugging Face on first run.
-
-### Option 2: Manual GGUF + mmproj
-
-Set these in `local_settings.bat` or as environment variables:
-
-```bat
-set MODEL_GGUF=C:\path\to\Qwen3.6-35B-A3B-Instruct-Q4_K_M.gguf
-set MMPROJ_GGUF=C:\path\to\Qwen3.6-35B-A3B-Vision-mmproj-Q4_K_M.gguf
-```
-
-Then run:
-
-```bat
-scripts\run-llama-qwen36-vision.bat
-```
-
-### Verify vision works
-
-After the server starts, run the smoke test:
-
-```bat
-scripts\test-image-input.bat
-```
-
-This sends a text+image request to prove the model can see images.
-
-### Using vision in OpenCode
-
-The `qwen36-vision` model is already configured in `config/opencode/opencode.jsonc` with multimodal support. Just select it in OpenCode and you can drag-drop images into the chat.
-
 ## Suggested first OpenCode prompt
 
 ```text
