@@ -6,18 +6,18 @@
   "provider": {
     "llama.cpp": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "llama-server (local)",
+      "name": "llama-server (local) - aggressive",
 
       "options": {
-        "baseURL": "http://127.0.0.1:8080/v1",
+        "baseURL": "http://127.0.0.1:8081/v1",
         "apiKey": "sk-no-key-required"
       },
 
       "models": {
         "qwen-local": {
-          "name": "Qwen local",
+          "name": "Qwen local (aggressive)",
           "limit": {
-            "context": 65536,
+            "context": 131072,
             "output": 8192
           }
         }
