@@ -117,6 +117,11 @@ exit /b 0
 
 :check_runtime_inputs
 set "RUNTIME_ERR=0"
+set "MODEL_FILE_NORM=%MODEL_FILE%"
+if defined MODEL_FILE_NORM (
+  set "MODEL_FILE_NORM=!MODEL_FILE_NORM:"=!"
+  for /f "tokens=* delims= " %%A in ("!MODEL_FILE_NORM!") do set "MODEL_FILE_NORM=%%A"
+)
 call :log INFO "Runtime validation input: LLAMA_EXE=%LLAMA_EXE%"
 call :log INFO "Runtime validation input: MODEL_FILE=%MODEL_FILE%"
 if not exist "%CD%\runtime" (
@@ -145,7 +150,7 @@ if not exist "%LLAMA_EXE%" (
     set "RUNTIME_ERR=1"
   )
 )
-if "%MODEL_FILE%"=="" (
+if "!MODEL_FILE_NORM!"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
   echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
@@ -155,18 +160,18 @@ if "%MODEL_FILE%"=="" (
   )
   set "RUNTIME_ERR=1"
 ) else (
-  if not exist "%MODEL_FILE%" (
-    call :log ERROR "MODEL_FILE path does not exist: %MODEL_FILE%"
+  if not exist "!MODEL_FILE_NORM!" (
+    call :log ERROR "MODEL_FILE path does not exist: !MODEL_FILE_NORM!"
     echo [ERROR] MODEL_FILE points to a file that does not exist:
-    echo         %MODEL_FILE%
+    echo         !MODEL_FILE_NORM!
     echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
     set "RUNTIME_ERR=1"
   ) else (
-    for %%E in ("%MODEL_FILE%") do set "MODEL_EXT=%%~xE"
+    for %%E in ("!MODEL_FILE_NORM!") do set "MODEL_EXT=%%~xE"
     if /I not "!MODEL_EXT!"==".gguf" (
-      call :log WARN "MODEL_FILE does not end with .gguf: %MODEL_FILE%"
+      call :log WARN "MODEL_FILE does not end with .gguf: !MODEL_FILE_NORM!"
       echo [WARN] MODEL_FILE does not have .gguf extension:
-      echo        %MODEL_FILE%
+      echo        !MODEL_FILE_NORM!
       echo        llama-server usually expects GGUF models. Verify this is intentional.
     )
   )
@@ -179,7 +184,8 @@ if "%RUNTIME_ERR%"=="1" (
   echo        set MODEL_FILE=...
   exit /b 1
 )
-call :log INFO "Using model file: %MODEL_FILE%"
+set "MODEL_FILE=!MODEL_FILE_NORM!"
+call :log INFO "Using model file: !MODEL_FILE!"
 exit /b 0
 
 :check_port_not_busy
