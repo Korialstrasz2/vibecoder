@@ -10,6 +10,11 @@ Goal:
 4. Run `start_opencode.bat` or `start_aider.bat`
 5. Create apps inside `projects/`
 
+LAN helper scripts (optional):
+
+- `start_server_lan.bat` (main PC): starts server in LAN mode (`0.0.0.0`) and prints a shareable LAN URL.
+- `setup_work_pc_client.bat` (work PC): asks for main-PC IP/port, writes OpenCode config with remote base URL, and tests connectivity.
+
 Recommended model idea:
 
 - Qwen 3.x / Qwen Coder GGUF, Q4_K_M or Q5_K_M
@@ -114,47 +119,6 @@ and model:
 llama.cpp/qwen-local
 ```
 
-## Vision models (image input)
-
-The kit supports vision-capable models (e.g. Qwen3.6 vision family) via the dedicated launcher scripts in `scripts/`.
-
-### Option 1: Hugging Face auto-download (recommended)
-
-```bat
-scripts\run-llama-qwen36-vision.bat
-```
-
-This downloads the model and mmproj automatically from Hugging Face on first run.
-
-### Option 2: Manual GGUF + mmproj
-
-Set these in `local_settings.bat` or as environment variables:
-
-```bat
-set MODEL_GGUF=C:\path\to\Qwen3.6-35B-A3B-Instruct-Q4_K_M.gguf
-set MMPROJ_GGUF=C:\path\to\Qwen3.6-35B-A3B-Vision-mmproj-Q4_K_M.gguf
-```
-
-Then run:
-
-```bat
-scripts\run-llama-qwen36-vision.bat
-```
-
-### Verify vision works
-
-After the server starts, run the smoke test:
-
-```bat
-scripts\test-image-input.bat
-```
-
-This sends a text+image request to prove the model can see images.
-
-### Using vision in OpenCode
-
-The `qwen36-vision` model is already configured in `config/opencode/opencode.jsonc` with multimodal support. Just select it in OpenCode and you can drag-drop images into the chat.
-
 ## Suggested first OpenCode prompt
 
 ```text
@@ -204,3 +168,16 @@ If tool calling behaves badly, reduce ambition:
 - ask for smaller steps
 - commit frequently
 - use Aider if OpenCode gets too chaotic
+
+## Qwen3.6 vision (OpenCode + llama.cpp)
+
+For local multimodal (text + image) usage with OpenCode and llama-server, see:
+
+- [`OPENCODE_LOCAL_MODELS.md`](OPENCODE_LOCAL_MODELS.md#opencode--qwen36-vision-with-local-llama-server)
+
+Quick start:
+
+```bash
+./scripts/run-llama-qwen36-vision.sh
+./scripts/smoke-test-vision-chat.sh
+```
