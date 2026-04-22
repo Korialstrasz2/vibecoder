@@ -9,6 +9,7 @@ set "RUN_ID=%RUN_ID: =0%"
 
 set "MAIN_LOG=%CD%\logs\startup_%RUN_ID%.log"
 set "SERVER_LOG=%CD%\logs\llama_server_%RUN_ID%.log"
+set "RUNTIME_LOG=%CD%\logs\runtime_validation_%RUN_ID%.log"
 set "LAST_FAILED_STEP="
 
 echo ===============================================================================>"%MAIN_LOG%"
@@ -21,6 +22,7 @@ echo.
 echo [INFO] VibeCoder one-click startup
 echo [INFO] Main log:   %MAIN_LOG%
 echo [INFO] Server log: %SERVER_LOG%
+echo [INFO] Runtime validation log: %RUNTIME_LOG%
 echo.
 
 call :run_step "Load settings" :load_settings || goto :fatal
@@ -117,6 +119,8 @@ exit /b 0
 
 :check_runtime_inputs
 call :log INFO "Runtime validation: begin"
+> "%RUNTIME_LOG%" echo === Runtime validation trace (%DATE% %TIME%) ===
+>>"%RUNTIME_LOG%" echo Working directory: %CD%
 call :log INFO "Runtime validation: normalizing LLAMA_EXE"
 call :normalize_path_var LLAMA_EXE
 call :log INFO "Runtime validation: normalized LLAMA_EXE"
@@ -138,6 +142,7 @@ if not exist "%CD%\models" (
   call :log INFO "models\ directory exists under %CD%"
 )
 call :log INFO "Runtime validation: verifying LLAMA_EXE path"
+call :path_diag "%LLAMA_EXE%" "LLAMA_EXE" >>"%RUNTIME_LOG%" 2>&1
 call :path_exists "%LLAMA_EXE%" "LLAMA_EXE"
 if errorlevel 1 (
   call :log INFO "LLAMA_EXE not found at configured path; checking fallback build output"
@@ -164,7 +169,8 @@ if errorlevel 1 (
 )
 call :log INFO "Runtime validation: verifying MODEL_FILE path"
 call :log INFO "Runtime validation: MODEL_FILE raw (post-normalization)='%MODEL_FILE%'"
-if "%MODEL_FILE%"=="" (
+call :path_diag "%MODEL_FILE%" "MODEL_FILE" >>"%RUNTIME_LOG%" 2>&1
+if not defined MODEL_FILE (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
   echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
@@ -207,13 +213,14 @@ exit /b 0
 set "_CHECK_PATH=%~1"
 set "_CHECK_LABEL=%~2"
 if not defined _CHECK_LABEL set "_CHECK_LABEL=path"
+set "VC_CHECK_PATH=%_CHECK_PATH%"
 call :log INFO "path_exists[%_CHECK_LABEL%]: checking via cmd if exist: '%_CHECK_PATH%'"
 if exist "%_CHECK_PATH%" (
   call :log INFO "path_exists[%_CHECK_LABEL%]: cmd if exist => true"
   exit /b 0
 )
 call :log WARN "path_exists[%_CHECK_LABEL%]: cmd if exist => false; retrying with PowerShell Test-Path -LiteralPath"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%_CHECK_PATH%'; if(Test-Path -LiteralPath $p -PathType Leaf){exit 0}else{exit 1}" >>"%MAIN_LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_CHECK_PATH'); if([string]::IsNullOrWhiteSpace($p)){exit 2}; if(Test-Path -LiteralPath $p -PathType Leaf){exit 0}else{exit 1}" >>"%MAIN_LOG%" 2>&1
 if "%ERRORLEVEL%"=="0" (
   call :log WARN "path_exists[%_CHECK_LABEL%]: PowerShell says true; using this result (possible cmd parsing edge-case)"
   exit /b 0
@@ -238,9 +245,41 @@ if not "%_VAR_VALUE:~-1%"==" " goto normalize_path_var_done
 set "_VAR_VALUE=%_VAR_VALUE:~0,-1%"
 goto normalize_path_var_trim_tail
 :normalize_path_var_done
-if "%_VAR_VALUE:~0,1%"==""" if "%_VAR_VALUE:~-1%"==""" set "_VAR_VALUE=%_VAR_VALUE:~1,-1%"
+if "%_VAR_VALUE:~0,1%"=="""" set "_VAR_VALUE=%_VAR_VALUE:~1%"
+:normalize_path_var_strip_quotes_tail
+if not defined _VAR_VALUE goto normalize_path_var_assign
+if "%_VAR_VALUE:~-1%"=="""" (
+  set "_VAR_VALUE=%_VAR_VALUE:~0,-1%"
+  goto normalize_path_var_strip_quotes_tail
+)
+:normalize_path_var_assign
 call set "%_VAR_NAME%=%_VAR_VALUE%"
 call :log INFO "normalize_path_var: %~1 normalized value='%_VAR_VALUE%'"
+exit /b 0
+
+:path_diag
+set "_DIAG_PATH=%~1"
+set "_DIAG_LABEL=%~2"
+if not defined _DIAG_LABEL set "_DIAG_LABEL=path"
+echo [%_DIAG_LABEL%] raw input: '%~1'
+if not defined _DIAG_PATH (
+  echo [%_DIAG_LABEL%] value is not defined after argument expansion.
+  exit /b 0
+)
+echo [%_DIAG_LABEL%] expanded value: '%_DIAG_PATH%'
+set "VC_DIAG_PATH=%_DIAG_PATH%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p=[Environment]::GetEnvironmentVariable('VC_DIAG_PATH'); Write-Output '[%_DIAG_LABEL%] char length: ' + $p.Length; if(Test-Path -LiteralPath $p -PathType Leaf){Write-Output '[%_DIAG_LABEL%] powershell Test-Path => true'} else {Write-Output '[%_DIAG_LABEL%] powershell Test-Path => false'}"
+if exist "%_DIAG_PATH%" (
+  echo [%_DIAG_LABEL%] cmd if exist => true
+) else (
+  echo [%_DIAG_LABEL%] cmd if exist => false
+)
+for %%A in ("%_DIAG_PATH%") do (
+  echo [%_DIAG_LABEL%] drive=%%~dA
+  echo [%_DIAG_LABEL%] dir=%%~dpA
+  echo [%_DIAG_LABEL%] name=%%~nA
+  echo [%_DIAG_LABEL%] ext=%%~xA
+)
 exit /b 0
 
 :check_port_not_busy
@@ -350,6 +389,7 @@ echo [FATAL] Startup aborted at step: %LAST_FAILED_STEP% (exit %RC%)
 echo         See logs for details:
 echo         %MAIN_LOG%
 echo         %SERVER_LOG%
+echo         %RUNTIME_LOG%
 if "%LAST_FAILED_STEP%"=="Validate runtime/model files" (
   echo.
   echo [HINT] Runtime/model validation failed. Common causes:
