@@ -138,7 +138,8 @@ if not exist "%CD%\models" (
   call :log INFO "models\ directory exists under %CD%"
 )
 call :log INFO "Runtime validation: verifying LLAMA_EXE path"
-if not exist "%LLAMA_EXE%" (
+call :path_exists "%LLAMA_EXE%" "LLAMA_EXE"
+if errorlevel 1 (
   call :log INFO "LLAMA_EXE not found at configured path; checking fallback build output"
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
     set "LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe"
@@ -162,6 +163,7 @@ if not exist "%LLAMA_EXE%" (
   call :log INFO "LLAMA_EXE exists: %LLAMA_EXE%"
 )
 call :log INFO "Runtime validation: verifying MODEL_FILE path"
+call :log INFO "Runtime validation: MODEL_FILE raw (post-normalization)='%MODEL_FILE%'"
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
@@ -173,11 +175,16 @@ if "%MODEL_FILE%"=="" (
   exit /b 1
 ) else (
   call :log INFO "MODEL_FILE is set; checking existence"
-  if not exist "%MODEL_FILE%" (
+  call :path_exists "%MODEL_FILE%" "MODEL_FILE"
+  if errorlevel 1 (
     call :log ERROR "MODEL_FILE path does not exist: %MODEL_FILE%"
     echo [ERROR] MODEL_FILE points to a file that does not exist:
     echo         %MODEL_FILE%
     echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
+    call :log INFO "Attempting to log first few .gguf files under %CD%\models for troubleshooting"
+    for /f "delims=" %%G in ('dir /b "%CD%\models\*.gguf" 2^>nul') do (
+      call :log INFO "models\ candidate: %%~fG"
+    )
     exit /b 1
   ) else (
     call :log INFO "MODEL_FILE exists: %MODEL_FILE%"
@@ -195,6 +202,24 @@ if "%MODEL_FILE%"=="" (
 call :log INFO "Using model file: %MODEL_FILE%"
 call :log INFO "Runtime validation: success"
 exit /b 0
+
+:path_exists
+set "_CHECK_PATH=%~1"
+set "_CHECK_LABEL=%~2"
+if not defined _CHECK_LABEL set "_CHECK_LABEL=path"
+call :log INFO "path_exists[%_CHECK_LABEL%]: checking via cmd if exist: '%_CHECK_PATH%'"
+if exist "%_CHECK_PATH%" (
+  call :log INFO "path_exists[%_CHECK_LABEL%]: cmd if exist => true"
+  exit /b 0
+)
+call :log WARN "path_exists[%_CHECK_LABEL%]: cmd if exist => false; retrying with PowerShell Test-Path -LiteralPath"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%_CHECK_PATH%'; if(Test-Path -LiteralPath $p -PathType Leaf){exit 0}else{exit 1}" >>"%MAIN_LOG%" 2>&1
+if "%ERRORLEVEL%"=="0" (
+  call :log WARN "path_exists[%_CHECK_LABEL%]: PowerShell says true; using this result (possible cmd parsing edge-case)"
+  exit /b 0
+)
+call :log ERROR "path_exists[%_CHECK_LABEL%]: both cmd and PowerShell checks report missing"
+exit /b 1
 
 
 :normalize_path_var
