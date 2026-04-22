@@ -203,7 +203,7 @@ call set "%_VAR_NAME%=%_VAR_VALUE%"
 exit /b 0
 
 :check_port_not_busy
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $inUse=Get-NetTCPConnection -State Listen -LocalPort %LLAMA_PORT% -ErrorAction SilentlyContinue; if($inUse){exit 10}else{exit 0}" >>"%MAIN_LOG%" 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $listeners=[System.Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners(); if($listeners | Where-Object { $_.Port -eq %LLAMA_PORT% }) { exit 10 } else { exit 0 }" >>"%MAIN_LOG%" 2>&1
 if "%ERRORLEVEL%"=="10" (
   call :log ERROR "Port %LLAMA_PORT% already has a listening process"
   echo [ERROR] Port %LLAMA_PORT% is already in use.
@@ -211,6 +211,14 @@ if "%ERRORLEVEL%"=="10" (
   exit /b 1
 )
 if not "%ERRORLEVEL%"=="0" (
+  call :log WARN "Primary port check failed; trying netstat fallback"
+  netstat -ano -p tcp | findstr /R /C:":%LLAMA_PORT% .*LISTENING" >nul 2>&1
+  if not errorlevel 1 (
+    call :log ERROR "Port %LLAMA_PORT% detected as LISTENING via netstat fallback"
+    echo [ERROR] Port %LLAMA_PORT% is already in use.
+    echo         Stop the process using that port or set LLAMA_PORT in local_settings.bat.
+    exit /b 1
+  )
   call :log WARN "Could not reliably query port usage; continuing"
 )
 exit /b 0
