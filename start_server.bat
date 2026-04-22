@@ -85,7 +85,7 @@ if defined CONTEXT_PROFILE (
 
 if not defined LLAMA_CTX set "LLAMA_CTX=32768"
 
-if "%MODEL_COUNT%" GTR "1" if not defined CONTEXT_PROFILE (
+if not defined CONTEXT_PROFILE (
     echo.
     echo --- Context Profile ---
     echo 1. short  - 16k context  (fast, good for simple tasks)
