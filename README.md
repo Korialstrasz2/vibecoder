@@ -10,6 +10,11 @@ Goal:
 4. Run `start_opencode.bat` or `start_aider.bat`
 5. Create apps inside `projects/`
 
+LAN helper scripts (optional):
+
+- `start_server_lan.bat` (main PC): starts server in LAN mode (`0.0.0.0`) and prints a shareable LAN URL.
+- `setup_work_pc_client.bat` (work PC): asks for main-PC IP/port, writes OpenCode config with remote base URL, and tests connectivity.
+
 Recommended model idea:
 
 - Qwen 3.x / Qwen Coder GGUF, Q4_K_M or Q5_K_M
