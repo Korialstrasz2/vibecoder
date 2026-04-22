@@ -117,6 +117,8 @@ exit /b 0
 
 :check_runtime_inputs
 set "RUNTIME_ERR=0"
+set "LLAMA_OK=0"
+set "MODEL_OK=0"
 call :log INFO "Runtime validation: begin"
 call :log INFO "Runtime validation: normalizing LLAMA_EXE"
 call :normalize_path_var LLAMA_EXE
@@ -143,6 +145,7 @@ if not exist "%LLAMA_EXE%" (
   call :log INFO "LLAMA_EXE not found at configured path; checking fallback build output"
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
     set "LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe"
+    set "LLAMA_OK=1"
     call :log INFO "Using llama-server from build output: %LLAMA_EXE%"
   ) else (
     call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
@@ -157,9 +160,10 @@ if not exist "%LLAMA_EXE%" (
       echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
       echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
     )
-    set "RUNTIME_ERR=1"
+    set "LLAMA_OK=0"
   )
 ) else (
+  set "LLAMA_OK=1"
   call :log INFO "LLAMA_EXE exists: %LLAMA_EXE%"
 )
 call :log INFO "Runtime validation: verifying MODEL_FILE path"
@@ -171,7 +175,7 @@ if "%MODEL_FILE%"=="" (
     echo         models\ directory does not exist yet.
     echo         Create models\ and copy at least one .gguf model into it.
   )
-  set "RUNTIME_ERR=1"
+  set "MODEL_OK=0"
 ) else (
   call :log INFO "MODEL_FILE is set; checking existence"
   if not exist "%MODEL_FILE%" (
@@ -179,8 +183,9 @@ if "%MODEL_FILE%"=="" (
     echo [ERROR] MODEL_FILE points to a file that does not exist:
     echo         %MODEL_FILE%
     echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
-    set "RUNTIME_ERR=1"
+    set "MODEL_OK=0"
   ) else (
+    set "MODEL_OK=1"
     call :log INFO "MODEL_FILE exists: %MODEL_FILE%"
     call :log INFO "Runtime validation: extracting model extension"
     for %%E in ("%MODEL_FILE%") do set "MODEL_EXT=%%~xE"
@@ -193,6 +198,9 @@ if "%MODEL_FILE%"=="" (
     )
   )
 )
+if not "%LLAMA_OK%"=="1" set "RUNTIME_ERR=1"
+if not "%MODEL_OK%"=="1" set "RUNTIME_ERR=1"
+call :log INFO "Runtime validation summary: LLAMA_OK=%LLAMA_OK% MODEL_OK=%MODEL_OK%"
 call :log INFO "Runtime validation: RUNTIME_ERR=%RUNTIME_ERR%"
 if "%RUNTIME_ERR%"=="1" (
   call :log INFO "Runtime validation failed; enumerating models\*.gguf for diagnostics"
