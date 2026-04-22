@@ -8,6 +8,42 @@ call :log ==========================================
 call :log Starting llama-server launcher in "%CD%"
 call :log Timestamp: %DATE% %TIME%
 
+rem --- Model picker (multiple GGUFs) ---
+set "MODEL_FILE="
+set "MODEL_COUNT=0"
+for /r "%CD%\models" %%F in (*.gguf) do set /a MODEL_COUNT+=1
+
+if %MODEL_COUNT% GTR 1 (
+    call :log Found %MODEL_COUNT% models, creating picker temp file
+    set "MODEL_PICKER_TEMP=%TEMP%\opencode_models_%RANDOM%.txt"
+    for /r "%CD%\models" %%F in (*.gguf) do echo %%~fF >>"%MODEL_PICKER_TEMP%"
+
+    call :log Listing models:
+    set "MODEL_IDX=0"
+    for /f "usebackq delims=" %%M in ("%MODEL_PICKER_TEMP%") do (
+        set /a MODEL_IDX+=1
+        set "MODEL_PICKER_NAME=%%~nxM"
+        call :log   !MODEL_IDX!. !MODEL_PICKER_NAME!
+    )
+    echo.
+    choice /t 3 /d 1 /n /c 1234567890 /m "Choose model (1-%MODEL_COUNT%): "
+    if errorlevel %MODEL_COUNT% ( set "MODEL_CHOICE=%MODEL_COUNT%" ) else ( set "MODEL_CHOICE=%errorlevel%" )
+
+    call :log Selected model option !MODEL_CHOICE!
+    set /a MODEL_IDX=0
+    for /f "usebackq delims=" %%M in ("%MODEL_PICKER_TEMP%") do (
+        set /a MODEL_IDX+=1
+        if !MODEL_IDX!==!MODEL_CHOICE! (
+            set "MODEL_FILE=%%~fF"
+            goto :picker_done
+        )
+    )
+    :picker_done
+    del /q "%MODEL_PICKER_TEMP%" >nul 2>&1
+
+    call :log MODEL_FILE auto-selected: "%MODEL_FILE%"
+)
+
 if exist "local_settings.bat" (
     call :log Found local_settings.bat, loading it
     call "local_settings.bat"
@@ -30,7 +66,43 @@ call :log LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS%
 call :log LLAMA_ALIAS=%LLAMA_ALIAS%
 call :log Initial LLAMA_EXE=%LLAMA_EXE%
 
-rem Resolve executable.
+rem --- Context profile selection ---
+if defined CONTEXT_PROFILE (
+    call :log Using preset profile: %CONTEXT_PROFILE%
+    if /i "%CONTEXT_PROFILE%"=="short" (
+        set "LLAMA_CTX=16384"
+        set "PROFILE_DISPLAY=short (16k)"
+    ) else if /i "%CONTEXT_PROFILE%"=="long" (
+        set "LLAMA_CTX=65536"
+        set "PROFILE_DISPLAY=long (64k)"
+    ) else if /i "%CONTEXT_PROFILE%"=="ultra" (
+        set "LLAMA_CTX=131072"
+        set "PROFILE_DISPLAY=ultra (128k)"
+    ) else (
+        set "PROFILE_DISPLAY=custom (%CONTEXT_PROFILE%)"
+    )
+)
+
+if not defined LLAMA_CTX set "LLAMA_CTX=32768"
+
+if "%MODEL_COUNT%" GTR "1" if not defined CONTEXT_PROFILE (
+    echo.
+    echo --- Context Profile ---
+    echo 1. short  - 16k context  (fast, good for simple tasks)
+    echo 2. long   - 64k context  (balanced)
+    echo 3. ultra  - 128k context (slower, for complex/large codebases)
+    echo.
+    choice /t 5 /d 2 /n /c 123 /m "Choose profile: "
+    if errorlevel 3 ( set "LLAMA_CTX=131072" & set "PROFILE_DISPLAY=ultra (128k)" ) else (
+    if errorlevel 2 ( set "LLAMA_CTX=65536"  & set "PROFILE_DISPLAY=long (64k)" ) else (
+    if errorlevel 1 ( set "LLAMA_CTX=16384"  & set "PROFILE_DISPLAY=short (16k)" ) ) )
+)
+
+if defined PROFILE_DISPLAY (
+    call :log Context profile: %PROFILE_DISPLAY%
+)
+
+rem --- Resolve executable ---
 if exist "%LLAMA_EXE%" (
     call :log Found llama-server.exe at "%LLAMA_EXE%"
 ) else if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
@@ -49,7 +121,7 @@ if exist "%LLAMA_EXE%" (
     goto :fail
 )
 
-rem Resolve model.
+rem --- Resolve model ---
 if not defined MODEL_FILE (
     call :log MODEL_FILE not preset, searching models folder
     set "MODEL_FILE="
@@ -83,15 +155,22 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
+rem --- Update opencode context limit ---
+if defined PROFILE_DISPLAY (
+    call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
+    powershell -NoProfile -Command "(Get-Content '%CD%\config\opencode\opencode.jsonc') -replace '""context"": \d+', '\"context\": %LLAMA_CTX%' | Set-Content '%CD%\config\opencode\opencode.jsonc'"
+    call :log opencode.jsonc updated
+)
+
 echo.
 echo === Starting llama-server ===
-echo Model:      %MODEL_FILE%
-echo URL:        http://%LLAMA_HOST%:%LLAMA_PORT%/v1
-echo Models API: http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
-echo Ctx:        %LLAMA_CTX%
-echo GPU layers: %LLAMA_GPU_LAYERS%
-echo Alias:      %LLAMA_ALIAS%
-echo Log:        %LOG_FILE%
+echo Model:       %MODEL_FILE%
+echo URL:         http://%LLAMA_HOST%:%LLAMA_PORT%/v1
+echo Models API:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
+echo Ctx:         %LLAMA_CTX%
+echo GPU layers:  %LLAMA_GPU_LAYERS%
+echo Alias:       %LLAMA_ALIAS%
+echo Log:         %LOG_FILE%
 echo.
 
 call :log Launch command:
@@ -140,6 +219,13 @@ pause
 endlocal & exit /b 1
 
 :end
+del /q "%TEMP%\opencode_models_*.txt" >nul 2>&1
+echo.
+echo Server exited normally.
+call :log Script finished successfully
+goto :_end
+
+:_end
 pause
 endlocal & exit /b 0
 
