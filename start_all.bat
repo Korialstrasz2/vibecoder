@@ -117,10 +117,11 @@ exit /b 0
 
 :check_runtime_inputs
 set "RUNTIME_ERR=0"
-set "LLAMA_EXE=%LLAMA_EXE:"=%"
-set "MODEL_FILE=%MODEL_FILE:"=%"
+call :normalize_path_var LLAMA_EXE
+call :normalize_path_var MODEL_FILE
 call :log INFO "Runtime validation input: LLAMA_EXE=%LLAMA_EXE%"
 call :log INFO "Runtime validation input: MODEL_FILE=%MODEL_FILE%"
+echo [INFO] Runtime validation: checking configured runtime/model paths...
 if not exist "%CD%\runtime" (
   call :log WARN "runtime\ directory does not exist under %CD%"
 )
@@ -182,6 +183,23 @@ if "%RUNTIME_ERR%"=="1" (
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
+exit /b 0
+
+
+:normalize_path_var
+set "_VAR_NAME=%~1"
+set "_VAR_VALUE="
+call set "_VAR_VALUE=%%%_VAR_NAME%%%"
+if not defined _VAR_VALUE exit /b 0
+for /f "tokens=* delims= " %%A in ("%_VAR_VALUE%") do set "_VAR_VALUE=%%A"
+:normalize_path_var_trim_tail
+if not defined _VAR_VALUE goto normalize_path_var_done
+if not "%_VAR_VALUE:~-1%"==" " goto normalize_path_var_done
+set "_VAR_VALUE=%_VAR_VALUE:~0,-1%"
+goto normalize_path_var_trim_tail
+:normalize_path_var_done
+if "%_VAR_VALUE:~0,1%"==""" if "%_VAR_VALUE:~-1%"==""" set "_VAR_VALUE=%_VAR_VALUE:~1,-1%"
+call set "%_VAR_NAME%=%_VAR_VALUE%"
 exit /b 0
 
 :check_port_not_busy
