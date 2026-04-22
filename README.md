@@ -52,12 +52,18 @@ Use `start_all.bat` for a full startup flow with validation and logs. It will:
 3. Auto-install OpenCode (`opencode-ai`) if missing.
 4. Validate `runtime\llama.cpp\llama-server.exe` and `models\*.gguf`.
 5. Install OpenCode config to `%APPDATA%\opencode\opencode.jsonc`.
-6. Launch llama-server in a separate window.
+6. Launch `start_server.bat` in a separate window.
 7. Poll `http://127.0.0.1:8080/v1/models` (or your configured host/port) until healthy.
 8. Launch OpenCode inside `projects\`.
 
 Logs are written to `logs\startup_*.log` and `logs\llama_server_*.log`.
 On failure, the script reports the exact failed startup step and exit code.
+
+## OpenCode + local models setup guide
+
+If you want a focused walkthrough for connecting OpenCode to local models, see:
+
+- [`OPENCODE_LOCAL_MODELS.md`](OPENCODE_LOCAL_MODELS.md)
 
 ## First run
 
