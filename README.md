@@ -57,6 +57,7 @@ Use `start_all.bat` for a full startup flow with validation and logs. It will:
 8. Launch OpenCode inside `projects\`.
 
 Logs are written to `logs\startup_*.log` and `logs\llama_server_*.log`.
+On failure, the script reports the exact failed startup step and exit code.
 
 ## First run
 

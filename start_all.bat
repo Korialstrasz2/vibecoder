@@ -3,12 +3,13 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 if not exist "logs" mkdir "logs"
-for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "RUN_ID=%%I"
+for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "RUN_ID=%%I"
 if not defined RUN_ID set "RUN_ID=%DATE:~-4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%"
 set "RUN_ID=%RUN_ID: =0%"
 
 set "MAIN_LOG=%CD%\logs\startup_%RUN_ID%.log"
 set "SERVER_LOG=%CD%\logs\llama_server_%RUN_ID%.log"
+set "LAST_FAILED_STEP="
 
 echo ===============================================================================>"%MAIN_LOG%"
 echo VibeCoder full startup run id: %RUN_ID%>>"%MAIN_LOG%"
@@ -22,18 +23,30 @@ echo [INFO] Main log:   %MAIN_LOG%
 echo [INFO] Server log: %SERVER_LOG%
 echo.
 
-call :load_settings || goto :fatal
-call :check_required_commands || goto :fatal
-call :ensure_opencode || goto :fatal
-call :check_runtime_inputs || goto :fatal
-call :check_port_not_busy || goto :fatal
-call :install_opencode_config || goto :fatal
-call :start_server || goto :fatal
-call :wait_for_server || goto :fatal
-call :launch_opencode || goto :fatal
+call :run_step "Load settings" :load_settings || goto :fatal
+call :run_step "Check required commands" :check_required_commands || goto :fatal
+call :run_step "Ensure opencode" :ensure_opencode || goto :fatal
+call :run_step "Validate runtime/model files" :check_runtime_inputs || goto :fatal
+call :run_step "Check llama port" :check_port_not_busy || goto :fatal
+call :run_step "Install OpenCode config" :install_opencode_config || goto :fatal
+call :run_step "Start llama-server" :start_server || goto :fatal
+call :run_step "Wait for llama-server health" :wait_for_server || goto :fatal
+call :run_step "Launch OpenCode" :launch_opencode || goto :fatal
 
 echo [OK] Startup flow completed successfully.
 call :log INFO "Startup flow completed successfully"
+exit /b 0
+
+:run_step
+call :log INFO "STEP START: %~1"
+call %~2
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" (
+  set "LAST_FAILED_STEP=%~1"
+  call :log ERROR "STEP FAILED: %~1 (exit %RC%)"
+  exit /b %RC%
+)
+call :log INFO "STEP OK: %~1"
 exit /b 0
 
 :load_settings
@@ -124,6 +137,12 @@ if not "%ERRORLEVEL%"=="0" (
 exit /b 0
 
 :install_opencode_config
+if not defined APPDATA (
+  call :log ERROR "APPDATA is not defined; cannot install OpenCode config"
+  echo [ERROR] APPDATA is not defined in this shell.
+  echo         Run this from a normal Windows user shell and retry.
+  exit /b 1
+)
 if not exist "%APPDATA%\opencode" mkdir "%APPDATA%\opencode" >>"%MAIN_LOG%" 2>&1
 copy /Y "config\opencode\opencode.jsonc" "%APPDATA%\opencode\opencode.jsonc" >nul
 if errorlevel 1 (
@@ -197,14 +216,19 @@ exit /b 0
 :log
 set "LEVEL=%~1"
 set "MSG=%~2"
-for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss\""') do set "STAMP=%%I"
+set "STAMP="
+for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss\""') do set "STAMP=%%I"
+if not defined STAMP set "STAMP=%DATE% %TIME%"
 >>"%MAIN_LOG%" echo [%STAMP%] [%LEVEL%] %MSG%
 exit /b 0
 
 :fatal
+set "RC=%ERRORLEVEL%"
+if not defined LAST_FAILED_STEP set "LAST_FAILED_STEP=Unknown step"
 echo.
-echo [FATAL] Startup aborted. See logs for details:
+echo [FATAL] Startup aborted at step: %LAST_FAILED_STEP% (exit %RC%)
+echo         See logs for details:
 echo         %MAIN_LOG%
 echo         %SERVER_LOG%
-call :log ERROR "Startup aborted"
-exit /b 1
+call :log ERROR "Startup aborted at step: %LAST_FAILED_STEP% (exit %RC%)"
+exit /b %RC%
