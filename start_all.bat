@@ -117,18 +117,30 @@ exit /b 0
 
 :check_runtime_inputs
 set "RUNTIME_ERR=0"
+call :log INFO "Runtime validation: begin"
+call :log INFO "Runtime validation: normalizing LLAMA_EXE"
 call :normalize_path_var LLAMA_EXE
+call :log INFO "Runtime validation: normalized LLAMA_EXE"
+call :log INFO "Runtime validation: normalizing MODEL_FILE"
 call :normalize_path_var MODEL_FILE
+call :log INFO "Runtime validation: normalized MODEL_FILE"
 call :log INFO "Runtime validation input: LLAMA_EXE=%LLAMA_EXE%"
 call :log INFO "Runtime validation input: MODEL_FILE=%MODEL_FILE%"
 echo [INFO] Runtime validation: checking configured runtime/model paths...
+call :log INFO "Runtime validation: checking runtime/models directories"
 if not exist "%CD%\runtime" (
   call :log WARN "runtime\ directory does not exist under %CD%"
+) else (
+  call :log INFO "runtime\ directory exists under %CD%"
 )
 if not exist "%CD%\models" (
   call :log WARN "models\ directory does not exist under %CD%"
+) else (
+  call :log INFO "models\ directory exists under %CD%"
 )
+call :log INFO "Runtime validation: verifying LLAMA_EXE path"
 if not exist "%LLAMA_EXE%" (
+  call :log INFO "LLAMA_EXE not found at configured path; checking fallback build output"
   if exist "%CD%\runtime\llama.cpp\build\bin\llama-server.exe" (
     set "LLAMA_EXE=%CD%\runtime\llama.cpp\build\bin\llama-server.exe"
     call :log INFO "Using llama-server from build output: %LLAMA_EXE%"
@@ -147,7 +159,10 @@ if not exist "%LLAMA_EXE%" (
     )
     set "RUNTIME_ERR=1"
   )
+) else (
+  call :log INFO "LLAMA_EXE exists: %LLAMA_EXE%"
 )
+call :log INFO "Runtime validation: verifying MODEL_FILE path"
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
@@ -158,6 +173,7 @@ if "%MODEL_FILE%"=="" (
   )
   set "RUNTIME_ERR=1"
 ) else (
+  call :log INFO "MODEL_FILE is set; checking existence"
   if not exist "%MODEL_FILE%" (
     call :log ERROR "MODEL_FILE path does not exist: %MODEL_FILE%"
     echo [ERROR] MODEL_FILE points to a file that does not exist:
@@ -165,7 +181,10 @@ if "%MODEL_FILE%"=="" (
     echo         Update MODEL_FILE in local_settings.bat or copy the model file to that path.
     set "RUNTIME_ERR=1"
   ) else (
+    call :log INFO "MODEL_FILE exists: %MODEL_FILE%"
+    call :log INFO "Runtime validation: extracting model extension"
     for %%E in ("%MODEL_FILE%") do set "MODEL_EXT=%%~xE"
+    call :log INFO "Runtime validation: MODEL_EXT=!MODEL_EXT!"
     if /I not "!MODEL_EXT!"==".gguf" (
       call :log WARN "MODEL_FILE does not end with .gguf: %MODEL_FILE%"
       echo [WARN] MODEL_FILE does not have .gguf extension:
@@ -174,7 +193,9 @@ if "%MODEL_FILE%"=="" (
     )
   )
 )
+call :log INFO "Runtime validation: RUNTIME_ERR=%RUNTIME_ERR%"
 if "%RUNTIME_ERR%"=="1" (
+  call :log INFO "Runtime validation failed; enumerating models\*.gguf for diagnostics"
   echo [INFO] Detected .gguf files under models\ (if any):
   for /f "delims=" %%F in ('dir /b "%CD%\models\*.gguf" 2^>nul') do echo        - %%F
   echo [INFO] Tip: You can override both paths in local_settings.bat:
@@ -183,6 +204,7 @@ if "%RUNTIME_ERR%"=="1" (
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
+call :log INFO "Runtime validation: success"
 exit /b 0
 
 
@@ -190,7 +212,11 @@ exit /b 0
 set "_VAR_NAME=%~1"
 set "_VAR_VALUE="
 call set "_VAR_VALUE=%%%_VAR_NAME%%%"
-if not defined _VAR_VALUE exit /b 0
+if not defined _VAR_VALUE (
+  call :log INFO "normalize_path_var: %~1 is not defined"
+  exit /b 0
+)
+call :log INFO "normalize_path_var: %~1 raw value='%_VAR_VALUE%'"
 for /f "tokens=* delims= " %%A in ("%_VAR_VALUE%") do set "_VAR_VALUE=%%A"
 :normalize_path_var_trim_tail
 if not defined _VAR_VALUE goto normalize_path_var_done
@@ -200,6 +226,7 @@ goto normalize_path_var_trim_tail
 :normalize_path_var_done
 if "%_VAR_VALUE:~0,1%"==""" if "%_VAR_VALUE:~-1%"==""" set "_VAR_VALUE=%_VAR_VALUE:~1,-1%"
 call set "%_VAR_NAME%=%_VAR_VALUE%"
+call :log INFO "normalize_path_var: %~1 normalized value='%_VAR_VALUE%'"
 exit /b 0
 
 :check_port_not_busy
@@ -296,7 +323,7 @@ exit /b 0
 set "LEVEL=%~1"
 set "MSG=%~2"
 set "STAMP="
-for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss\""') do set "STAMP=%%I"
+for /f "delims=" %%I in ('powershell -NoProfile -Command "Get-Date -Format \"yyyy-MM-dd HH:mm:ss.fff\""') do set "STAMP=%%I"
 if not defined STAMP set "STAMP=%DATE% %TIME%"
 >>"%MAIN_LOG%" echo [%STAMP%] [%LEVEL%] %MSG%
 exit /b 0
