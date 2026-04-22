@@ -142,14 +142,14 @@ if not exist "%LLAMA_EXE%" (
       echo         Run setup_runtime.bat first to install/build llama.cpp runtime files.
     ) else (
       echo         Set LLAMA_EXE in local_settings.bat or place llama-server.exe in:
-      echo         runtime\llama.cpp\    (or runtime\llama.cpp\build\bin\)
+      echo         runtime\llama.cpp\    ^(or runtime\llama.cpp\build\bin\^)
     )
     set "RUNTIME_ERR=1"
   )
 )
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
-  echo [ERROR] No model file found in models\ (expected *.gguf)
+  echo [ERROR] No model file found in models\ ^(expected *.gguf^)
   echo         You can also set MODEL_FILE in local_settings.bat to an absolute path.
   if not exist "%CD%\models" (
     echo         models\ directory does not exist yet.
@@ -174,7 +174,7 @@ if "%MODEL_FILE%"=="" (
   )
 )
 if "%RUNTIME_ERR%"=="1" (
-  echo [INFO] Detected .gguf files under models\ (if any):
+  echo [INFO] Detected .gguf files under models\ ^(if any^):
   for /f "delims=" %%F in ('dir /b "%CD%\models\*.gguf" 2^>nul') do echo        - %%F
   echo [INFO] Tip: You can override both paths in local_settings.bat:
   echo        set LLAMA_EXE=...
@@ -302,14 +302,14 @@ if "%LAST_FAILED_STEP%"=="Validate runtime/model files" (
 if "%LAST_FAILED_STEP%"=="Check required commands" (
   echo.
   echo [HINT] Install missing tools and re-open terminal:
-  echo        - PowerShell (built into Windows)
-  echo        - Node.js + npm (https://nodejs.org)
+  echo        - PowerShell ^(built into Windows^)
+  echo        - Node.js + npm ^(https://nodejs.org^)
 )
 if "%LAST_FAILED_STEP%"=="Ensure opencode" (
   echo.
   echo [HINT] opencode install failed. Try:
   echo        npm install -g opencode-ai
-  echo        (Run terminal as a user with npm global install permissions)
+  echo        ^(Run terminal as a user with npm global install permissions^)
 )
 if "%LAST_FAILED_STEP%"=="Check llama port" (
   echo.
