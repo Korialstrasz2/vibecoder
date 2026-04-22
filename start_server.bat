@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 set "LOG_FILE=%~dp0start_server.log"
@@ -16,11 +16,11 @@ for /r "%CD%\models" %%F in (*.gguf) do set /a MODEL_COUNT+=1
 if %MODEL_COUNT% GTR 1 (
     call :log Found %MODEL_COUNT% models, creating picker temp file
     set "MODEL_PICKER_TEMP=%TEMP%\opencode_models_%RANDOM%.txt"
-    for /r "%CD%\models" %%F in (*.gguf) do echo %%~fF >>"%MODEL_PICKER_TEMP%"
+    for /r "%CD%\models" %%F in (*.gguf) do echo %%~fF >>"!MODEL_PICKER_TEMP!"
 
     call :log Listing models:
     set "MODEL_IDX=0"
-    for /f "usebackq delims=" %%M in ("%MODEL_PICKER_TEMP%") do (
+    for /f "usebackq delims=" %%M in ("!MODEL_PICKER_TEMP!") do (
         set /a MODEL_IDX+=1
         set "MODEL_PICKER_NAME=%%~nxM"
         call :log   !MODEL_IDX!. !MODEL_PICKER_NAME!
@@ -31,15 +31,15 @@ if %MODEL_COUNT% GTR 1 (
 
     call :log Selected model option !MODEL_CHOICE!
     set /a MODEL_IDX=0
-    for /f "usebackq delims=" %%M in ("%MODEL_PICKER_TEMP%") do (
+    for /f "usebackq delims=" %%M in ("!MODEL_PICKER_TEMP!") do (
         set /a MODEL_IDX+=1
         if !MODEL_IDX!==!MODEL_CHOICE! (
-            set "MODEL_FILE=%%~fF"
+            set "MODEL_FILE=%%~fM"
             goto :picker_done
         )
     )
     :picker_done
-    del /q "%MODEL_PICKER_TEMP%" >nul 2>&1
+    del /q "!MODEL_PICKER_TEMP!" >nul 2>&1
 
     call :log MODEL_FILE auto-selected: "%MODEL_FILE%"
 )
