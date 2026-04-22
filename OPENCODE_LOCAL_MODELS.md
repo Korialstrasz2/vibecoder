@@ -91,76 +91,59 @@ Then restart `start_server.bat` (or `start_all.bat`) and keep OpenCode model set
 3. Work inside `projects\` with OpenCode.
 4. If you change model alias/port, restart server and re-check OpenCode Settings.
 
-## 8) Use OpenCode from a second PC on the same LAN
+## OpenCode + Qwen3.6 vision with local llama-server
 
-Yes — this is possible. Run llama.cpp/OpenCode on your main PC, then point your work PC tools to the main PC over your local network.
+### Start llama-server (image-capable)
 
-### Quick path (new helper scripts)
+Use the new script from this repository root:
 
-- On the **main PC**, run `start_server_lan.bat`.
-  - This sets LAN host binding (`0.0.0.0`) and prints the LAN URL.
-- On the **work PC**, run `setup_work_pc_client.bat`.
-  - This asks for the main-PC IP/port, writes OpenCode config with that base URL, and performs a connectivity check.
+```bash
+# Mode A: Hugging Face mode (llama.cpp auto-handles required files when supported)
+./scripts/run-llama-qwen36-vision.sh
 
-If you prefer manual setup, use the steps below.
+# Mode B: Manual GGUF mode (set both model + mmproj)
+LLAMA_MODE=gguf \
+MODEL_GGUF=/path/to/model.gguf \
+MMPROJ_GGUF=/path/to/mmproj.gguf \
+./scripts/run-llama-qwen36-vision.sh
+```
 
-### A) Bind llama-server to LAN instead of localhost
+Equivalent llama-server commands:
 
-In `local_settings.bat` on the **main PC**, set:
+```bash
+llama-server -hf ggml-org/Qwen3.6-35B-A3B-GGUF --host 127.0.0.1 --port 8080
+```
+
+```bash
+llama-server -m "$MODEL_GGUF" --mmproj "$MMPROJ_GGUF" --host 127.0.0.1 --port 8080
+```
+
+### Start OpenCode
+
+Run OpenCode after your server is up:
 
 ```bat
-set LLAMA_HOST=0.0.0.0
-set LLAMA_PORT=8080
+start_opencode.bat
 ```
 
-Then restart `start_server.bat` (or `start_all.bat`).
+or run `opencode` directly in your active project folder.
 
-`0.0.0.0` means “listen on all interfaces”, so other devices on your LAN can reach it.
+### Verify image input works
 
-### B) Allow inbound port on Windows Firewall (main PC)
+Run the smoke test:
 
-Allow TCP inbound on your chosen port (default `8080`) for your private network.
-
-If this is blocked, requests from the work PC will fail even if the server is running.
-
-### C) Get the main PC LAN IP
-
-On the main PC:
-
-```bat
-ipconfig
+```bash
+./scripts/smoke-test-vision-chat.sh
 ```
 
-Find the IPv4 address for your active adapter (example: `192.168.1.50`).
+It posts a text + image request to `http://127.0.0.1:8080/v1/chat/completions`.
 
-### D) Configure the client on work PC
+### If OpenCode says the model does not support images
 
-From the work PC, set the base URL to:
+Most likely fixes:
 
-```text
-http://<MAIN_PC_LAN_IP>:8080/v1
-```
-
-Example:
-
-```text
-http://192.168.1.50:8080/v1
-```
-
-Use the same model alias you configured (for example `llama.cpp/qwen-local`).
-
-### E) Connectivity test from work PC
-
-In a browser or terminal on the work PC:
-
-```text
-http://<MAIN_PC_LAN_IP>:8080/v1/models
-```
-
-If you get a models response, networking is good.
-
-### Security notes (important)
-
-- Only do this on a trusted private network.
-- Do **not** expose this port to the public internet.
-- If you need stronger isolation, keep `127.0.0.1` and use an SSH tunnel or VPN between PCs instead.
+1. Ensure the OpenCode model entry includes:
+   - `"modalities": { "input": ["text", "image"], "output": ["text"] }`
+2. If using manual GGUF mode, confirm `--mmproj` is provided and points to a valid multimodal projector GGUF.
+3. Confirm OpenCode is using the expected model id (`llama.cpp/qwen3.6-vision`) and base URL (`http://127.0.0.1:8080/v1`).
+4. Restart llama-server and OpenCode after config changes.
