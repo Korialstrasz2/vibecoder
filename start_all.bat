@@ -66,13 +66,8 @@ if "%LLAMA_PORT%"=="" set "LLAMA_PORT=8080"
 if "%LLAMA_CTX%"=="" set "LLAMA_CTX=32768"
 if "%LLAMA_GPU_LAYERS%"=="" set "LLAMA_GPU_LAYERS=999"
 if "%LLAMA_ALIAS%"=="" set "LLAMA_ALIAS=qwen-local"
-set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
-set "MODEL_FILE="
-for %%F in ("%CD%\models\*.gguf") do (
-  set "MODEL_FILE=%%~fF"
-  goto :_model_found
-)
-:_model_found
+call :resolve_llama_exe
+call :resolve_model_file
 call :log INFO "Resolved settings: host=%LLAMA_HOST% port=%LLAMA_PORT% ctx=%LLAMA_CTX% alias=%LLAMA_ALIAS%"
 exit /b 0
 
@@ -110,6 +105,7 @@ exit /b 0
 :check_runtime_inputs
 if not exist "%LLAMA_EXE%" (
   call :log ERROR "llama-server.exe not found at %LLAMA_EXE%"
+  call :log ERROR "Checked runtime directory: %CD%\runtime\llama.cpp"
   echo [ERROR] llama-server.exe not found:
   echo         %LLAMA_EXE%
   echo         Download a Windows llama.cpp build and extract to runtime\llama.cpp\
@@ -117,10 +113,31 @@ if not exist "%LLAMA_EXE%" (
 )
 if "%MODEL_FILE%"=="" (
   call :log ERROR "No .gguf model found in %CD%\models"
+  call :log ERROR "Checked model directory: %CD%\models"
   echo [ERROR] No model file found in models\ (expected *.gguf)
   exit /b 1
 )
 call :log INFO "Using model file: %MODEL_FILE%"
+exit /b 0
+
+:resolve_llama_exe
+set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
+if exist "%LLAMA_EXE%" exit /b 0
+
+for /f "delims=" %%F in ('dir /b /s /a:-d "%CD%\runtime\llama.cpp\llama-server*.exe" 2^>nul') do (
+  set "LLAMA_EXE=%%~fF"
+  call :log WARN "Using discovered llama-server executable at %%~fF"
+  exit /b 0
+)
+exit /b 0
+
+:resolve_model_file
+set "MODEL_FILE="
+for /f "delims=" %%F in ('dir /b /a:-d "%CD%\models\*.gguf" 2^>nul') do (
+  set "MODEL_FILE=%CD%\models\%%~nxF"
+  goto :_model_found
+)
+:_model_found
 exit /b 0
 
 :check_port_not_busy
