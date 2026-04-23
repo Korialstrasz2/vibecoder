@@ -58,12 +58,14 @@ if not defined LLAMA_CTX set "LLAMA_CTX=32768"
 if not defined LLAMA_GPU_LAYERS set "LLAMA_GPU_LAYERS=999"
 if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
 if not defined LLAMA_EXE set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
+if not defined LLAMA_ENABLE_VISION set "LLAMA_ENABLE_VISION=1"
 
 call :log LLAMA_HOST=%LLAMA_HOST%
 call :log LLAMA_PORT=%LLAMA_PORT%
 call :log LLAMA_CTX=%LLAMA_CTX%
 call :log LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS%
 call :log LLAMA_ALIAS=%LLAMA_ALIAS%
+call :log LLAMA_ENABLE_VISION=%LLAMA_ENABLE_VISION%
 call :log Initial LLAMA_EXE=%LLAMA_EXE%
 
 rem --- Context profile selection ---
@@ -155,6 +157,74 @@ for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 call :log Using MODEL_FILE="%MODEL_FILE%"
 call :log Using LLAMA_EXE_DIR="%LLAMA_EXE_DIR%"
 
+rem --- Resolve mmproj for vision (optional, but recommended for Qwen3.6 vision) ---
+set "MMPROJ_FILE_RESOLVED="
+for %%I in ("%MODEL_FILE%") do set "MODEL_FILE_NAME=%%~nxI"
+if /I "%LLAMA_ENABLE_VISION%"=="0" (
+    call :log LLAMA_ENABLE_VISION=0, skipping mmproj detection
+) else (
+    if defined MMPROJ_FILE (
+        call :log MMPROJ_FILE preset to "%MMPROJ_FILE%"
+        if exist "%MMPROJ_FILE%" (
+            set "MMPROJ_FILE_RESOLVED=%MMPROJ_FILE%"
+        ) else (
+            call :log WARNING: preset MMPROJ_FILE does not exist: "%MMPROJ_FILE%"
+            echo [WARN] MMPROJ_FILE was set but does not exist:
+            echo        "%MMPROJ_FILE%"
+        )
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
+        if /I not "%MODEL_FILE_NAME:27B=%"=="%MODEL_FILE_NAME%" (
+            for /r "%CD%\model_vision" %%F in (*27B*mmproj*.gguf mmproj*27B*.gguf) do (
+                if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+            )
+            if not defined MMPROJ_FILE_RESOLVED (
+                for /r "%CD%\models" %%F in (*27B*mmproj*.gguf mmproj*27B*.gguf) do (
+                    if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+                )
+            )
+            if defined MMPROJ_FILE_RESOLVED call :log Matched 27B model to mmproj: "%MMPROJ_FILE_RESOLVED%"
+        )
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
+        if /I not "%MODEL_FILE_NAME:35B=%"=="%MODEL_FILE_NAME%" (
+            for /r "%CD%\model_vision" %%F in (*35B*mmproj*.gguf mmproj*35B*.gguf mmproj-BF16.gguf) do (
+                if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+            )
+            if not defined MMPROJ_FILE_RESOLVED (
+                for /r "%CD%\models" %%F in (*35B*mmproj*.gguf mmproj*35B*.gguf mmproj-BF16.gguf) do (
+                    if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+                )
+            )
+            if defined MMPROJ_FILE_RESOLVED call :log Matched 35B model to mmproj: "%MMPROJ_FILE_RESOLVED%"
+        )
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
+        for /r "%CD%\model_vision" %%F in (mmproj*.gguf) do (
+            if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+        )
+        if defined MMPROJ_FILE_RESOLVED call :log Auto-detected mmproj under model_vision: "%MMPROJ_FILE_RESOLVED%"
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
+        for /r "%CD%\models" %%F in (mmproj*.gguf) do (
+            if not defined MMPROJ_FILE_RESOLVED set "MMPROJ_FILE_RESOLVED=%%~fF"
+        )
+        if defined MMPROJ_FILE_RESOLVED call :log Auto-detected mmproj under models: "%MMPROJ_FILE_RESOLVED%"
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
+        call :log No mmproj file detected; server will start in text-only mode unless model has built-in vision projector
+        echo [WARN] No mmproj file detected in model_vision\ or models\.
+        echo        Vision/image input may fail unless your model bundles projector weights.
+    ) else (
+        echo [INFO] Vision projector: "%MMPROJ_FILE_RESOLVED%"
+    )
+)
+
 rem --- Update opencode context limit ---
 call :log Updating opencode.jsonc context limit to %LLAMA_CTX%
 powershell -NoProfile -Command ^
@@ -180,7 +250,11 @@ echo Log:         %LOG_FILE%
 echo.
 
 call :log Launch command:
-call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE_RESOLVED (
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --mmproj "%MMPROJ_FILE_RESOLVED%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+) else (
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+)
 
 pushd "%LLAMA_EXE_DIR%" >nul 2>&1
 if errorlevel 1 (
@@ -190,13 +264,24 @@ if errorlevel 1 (
     goto :fail
 )
 
-"%LLAMA_EXE%" ^
-  --model "%MODEL_FILE%" ^
-  --host "%LLAMA_HOST%" ^
-  --port "%LLAMA_PORT%" ^
-  --ctx-size "%LLAMA_CTX%" ^
-  --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-  --alias "%LLAMA_ALIAS%"
+if defined MMPROJ_FILE_RESOLVED (
+  "%LLAMA_EXE%" ^
+    --model "%MODEL_FILE%" ^
+    --mmproj "%MMPROJ_FILE_RESOLVED%" ^
+    --host "%LLAMA_HOST%" ^
+    --port "%LLAMA_PORT%" ^
+    --ctx-size "%LLAMA_CTX%" ^
+    --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+    --alias "%LLAMA_ALIAS%"
+) else (
+  "%LLAMA_EXE%" ^
+    --model "%MODEL_FILE%" ^
+    --host "%LLAMA_HOST%" ^
+    --port "%LLAMA_PORT%" ^
+    --ctx-size "%LLAMA_CTX%" ^
+    --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
+    --alias "%LLAMA_ALIAS%"
+)
 
 set "SERVER_EXIT=%ERRORLEVEL%"
 popd >nul 2>&1

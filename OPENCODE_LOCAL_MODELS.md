@@ -108,6 +108,26 @@ MMPROJ_GGUF=/path/to/mmproj.gguf \
 ./scripts/run-llama-qwen36-vision.sh
 ```
 
+Windows portable-kit mode (`start_server.bat`) now auto-detects projector files named `mmproj*.gguf` in:
+
+1. `model_vision\` (checked first)
+2. `models\`
+
+So with your layout:
+
+```text
+models\
+  Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
+  Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
+model_vision\
+  mmproj-BF16.gguf
+  mmproj-Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-f16.gguf
+```
+
+`start_server.bat` will pass `--mmproj <detected-file>` automatically (unless `LLAMA_ENABLE_VISION=0`), with a best-effort model match:
+- for `*27B*` models, it prefers mmproj filenames containing `27B`
+- for `*35B*` models, it prefers mmproj filenames containing `35B` or `mmproj-BF16.gguf`
+
 Equivalent llama-server commands:
 
 ```bash
