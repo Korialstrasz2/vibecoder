@@ -1,9 +1,5 @@
 # Qwen + llama.cpp image-input 500 troubleshooting notes
 
-## Official references checked
-- llama.cpp multimodal docs: https://github.com/ggml-org/llama.cpp/blob/master/docs/multimodal.md
-- Qwen llama.cpp local run docs: https://qwen.readthedocs.io/en/latest/run_locally/llama.cpp.html
-
 ## What the 500 error means
 If `llama-server` returns:
 

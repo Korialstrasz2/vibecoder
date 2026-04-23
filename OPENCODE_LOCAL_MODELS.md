@@ -93,24 +93,6 @@ Then restart `start_server.bat` (or `start_all.bat`) and keep OpenCode model set
 
 ## OpenCode + Qwen3.6 vision with local llama-server
 
-### Your current folder layout (works)
-
-Based on your structure:
-
-```text
-models/
-  Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-Q4_K_P.gguf
-  Qwen3.6-35B-A3B-UD-Q4_K_M.gguf
-model_vision/
-  mmproj-BF16.gguf
-  mmproj-Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-f16.gguf
-```
-
-You should run one **main model GGUF** from `models/` and one **matching mmproj GGUF** from `model_vision/` using `--mmproj`.
-
-- For your `27B` model, prefer: `mmproj-Qwen3.6-27B-Uncensored-HauhauCS-Aggressive-f16.gguf`
-- For your `35B` model, use a 35B-matching mmproj file (if unavailable, image input may fail or degrade).
-
 ### Start llama-server (image-capable)
 
 Use the new script from this repository root:
@@ -155,8 +137,6 @@ Run the smoke test:
 ```
 
 It posts a text + image request to `http://127.0.0.1:8080/v1/chat/completions`.
-
-If you are using `start_server.bat` in this repository, it now auto-detects `mmproj*.gguf` in `model_vision/` (preferred) or `models/`, and passes `--mmproj` automatically. You can also force a specific projector with `set LLAMA_MMPROJ=C:\path\to\mmproj.gguf` in `local_settings.bat`.
 
 ### If OpenCode says the model does not support images
 
