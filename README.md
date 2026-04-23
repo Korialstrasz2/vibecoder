@@ -99,6 +99,10 @@ start_opencode.bat
 - context: 32768
 - GPU layers: 999
 - model alias: qwen-local
+- sampling defaults: temp 0.8, top_k 40, top_p 0.95, min_p 0.05, presence_penalty 0.0, repeat_penalty 1.0
+
+`start_server.bat` auto-detects Qwen3.6 models by filename (`qwen3.6`, case-insensitive) and applies `qwen-coding-precise` defaults automatically.
+For non-Qwen3.6 filenames, it keeps llama.cpp default-like sampling unless overridden in `local_settings.bat`.
 
 OpenCode config points to:
 

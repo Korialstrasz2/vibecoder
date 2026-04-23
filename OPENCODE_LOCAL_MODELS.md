@@ -80,9 +80,35 @@ set LLAMA_CTX=32768
 set LLAMA_GPU_LAYERS=999
 set LLAMA_ALIAS=qwen-local
 set MODEL_FILE=C:\path\to\your-model.gguf
+set LLAMA_SAMPLING_PROFILE=qwen-coding-precise
+set LLAMA_TEMPERATURE=0.6
+set LLAMA_TOP_K=20
+set LLAMA_TOP_P=0.95
+set LLAMA_MIN_P=0.0
+set LLAMA_PRESENCE_PENALTY=0.0
+set LLAMA_REPEAT_PENALTY=1.0
 ```
 
 Then restart `start_server.bat` (or `start_all.bat`) and keep OpenCode model settings aligned with `LLAMA_ALIAS`.
+
+### Sampling profiles (Qwen-friendly)
+
+`start_server.bat` supports starter sampling profiles via `LLAMA_SAMPLING_PROFILE`:
+
+- `qwen-thinking-general`
+- `qwen-coding-precise`
+- `qwen-instruct-general`
+- `llama-defaults`
+- `custom` (use explicitly set `LLAMA_*` sampling env vars only)
+
+Automatic behavior:
+
+- if model filename contains `qwen3.6` (case-insensitive), it auto-selects `qwen-coding-precise`
+- otherwise it keeps llama.cpp default-like sampling (unless you explicitly set profile/vars)
+
+If you want explicit control, set for example:
+
+- `LLAMA_SAMPLING_PROFILE=qwen-coding-precise`
 
 ## 7) Recommended daily workflow
 

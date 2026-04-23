@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-set "DEFAULT_ACTION=pull"
+set "DEFAULT_ACTION=pull origin main"
 
 echo ==================================================
 echo   VibeCoder Git Update Helper

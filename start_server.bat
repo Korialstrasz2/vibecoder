@@ -26,7 +26,7 @@ if %MODEL_COUNT% GTR 1 (
         call :log   !MODEL_IDX!. !MODEL_PICKER_NAME!
     )
     echo.
-    choice /t 3 /d 1 /n /c 1234567890 /m "Choose model (1-%MODEL_COUNT%): "
+    choice /t 5 /d 1 /n /c 1234567890 /m "Choose model (1-%MODEL_COUNT%): "
     if errorlevel %MODEL_COUNT% ( set "MODEL_CHOICE=%MODEL_COUNT%" ) else ( set "MODEL_CHOICE=%errorlevel%" )
 
     call :log Selected model option !MODEL_CHOICE!
@@ -94,7 +94,7 @@ if not defined CONTEXT_PROFILE (
     echo 2. long   - 64k context  (balanced)
     echo 3. ultra  - 128k context (slower, for complex/large codebases)
     echo.
-    choice /t 5 /d 2 /n /c 123 /m "Choose profile: "
+    choice /t 3 /d 2 /n /c 123 /m "Choose profile: "
     if errorlevel 3 ( set "LLAMA_CTX=131072" & set "PROFILE_DISPLAY=ultra (128k)" ) else (
     if errorlevel 2 ( set "LLAMA_CTX=65536"  & set "PROFILE_DISPLAY=long (64k)" ) else (
     if errorlevel 1 ( set "LLAMA_CTX=16384"  & set "PROFILE_DISPLAY=short (16k)" ) ) )
@@ -151,6 +151,65 @@ if not exist "%MODEL_FILE%" (
     echo   "%MODEL_FILE%"
     goto :fail
 )
+
+for %%I in ("%MODEL_FILE%") do set "MODEL_FILE_NAME=%%~nxI"
+call :log MODEL_FILE_NAME=%MODEL_FILE_NAME%
+
+rem --- Sampling profile selection (auto for Qwen3.6, otherwise keep llama.cpp defaults) ---
+if not defined LLAMA_SAMPLING_PROFILE (
+    echo %MODEL_FILE_NAME% | findstr /I /C:"qwen3.6" >nul
+    if not errorlevel 1 (
+        set "LLAMA_SAMPLING_PROFILE=qwen-coding-precise"
+        call :log Auto-selected LLAMA_SAMPLING_PROFILE=qwen-coding-precise based on model filename
+    ) else (
+        call :log No Qwen3.6 marker in model filename, keeping llama.cpp default-like sampling
+    )
+)
+
+if /I "%LLAMA_SAMPLING_PROFILE%"=="qwen-thinking-general" (
+    if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=1.0"
+    if not defined LLAMA_TOP_K set "LLAMA_TOP_K=20"
+    if not defined LLAMA_TOP_P set "LLAMA_TOP_P=0.95"
+    if not defined LLAMA_MIN_P set "LLAMA_MIN_P=0.0"
+    if not defined LLAMA_PRESENCE_PENALTY set "LLAMA_PRESENCE_PENALTY=1.5"
+    if not defined LLAMA_REPEAT_PENALTY set "LLAMA_REPEAT_PENALTY=1.0"
+) else if /I "%LLAMA_SAMPLING_PROFILE%"=="qwen-coding-precise" (
+    if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=0.6"
+    if not defined LLAMA_TOP_K set "LLAMA_TOP_K=20"
+    if not defined LLAMA_TOP_P set "LLAMA_TOP_P=0.95"
+    if not defined LLAMA_MIN_P set "LLAMA_MIN_P=0.0"
+    if not defined LLAMA_PRESENCE_PENALTY set "LLAMA_PRESENCE_PENALTY=0.0"
+    if not defined LLAMA_REPEAT_PENALTY set "LLAMA_REPEAT_PENALTY=1.0"
+) else if /I "%LLAMA_SAMPLING_PROFILE%"=="qwen-instruct-general" (
+    if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=0.7"
+    if not defined LLAMA_TOP_K set "LLAMA_TOP_K=20"
+    if not defined LLAMA_TOP_P set "LLAMA_TOP_P=0.8"
+    if not defined LLAMA_MIN_P set "LLAMA_MIN_P=0.0"
+    if not defined LLAMA_PRESENCE_PENALTY set "LLAMA_PRESENCE_PENALTY=1.5"
+    if not defined LLAMA_REPEAT_PENALTY set "LLAMA_REPEAT_PENALTY=1.0"
+) else if /I "%LLAMA_SAMPLING_PROFILE%"=="llama-defaults" (
+    if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=0.8"
+    if not defined LLAMA_TOP_K set "LLAMA_TOP_K=40"
+    if not defined LLAMA_TOP_P set "LLAMA_TOP_P=0.95"
+    if not defined LLAMA_MIN_P set "LLAMA_MIN_P=0.05"
+    if not defined LLAMA_PRESENCE_PENALTY set "LLAMA_PRESENCE_PENALTY=0.0"
+    if not defined LLAMA_REPEAT_PENALTY set "LLAMA_REPEAT_PENALTY=1.0"
+)
+
+if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=0.8"
+if not defined LLAMA_TOP_K set "LLAMA_TOP_K=40"
+if not defined LLAMA_TOP_P set "LLAMA_TOP_P=0.95"
+if not defined LLAMA_MIN_P set "LLAMA_MIN_P=0.05"
+if not defined LLAMA_PRESENCE_PENALTY set "LLAMA_PRESENCE_PENALTY=0.0"
+if not defined LLAMA_REPEAT_PENALTY set "LLAMA_REPEAT_PENALTY=1.0"
+
+call :log LLAMA_SAMPLING_PROFILE=%LLAMA_SAMPLING_PROFILE%
+if defined LLAMA_TEMPERATURE call :log LLAMA_TEMPERATURE=%LLAMA_TEMPERATURE%
+if defined LLAMA_TOP_K call :log LLAMA_TOP_K=%LLAMA_TOP_K%
+if defined LLAMA_TOP_P call :log LLAMA_TOP_P=%LLAMA_TOP_P%
+if defined LLAMA_MIN_P call :log LLAMA_MIN_P=%LLAMA_MIN_P%
+if defined LLAMA_PRESENCE_PENALTY call :log LLAMA_PRESENCE_PENALTY=%LLAMA_PRESENCE_PENALTY%
+if defined LLAMA_REPEAT_PENALTY call :log LLAMA_REPEAT_PENALTY=%LLAMA_REPEAT_PENALTY%
 
 for %%I in ("%LLAMA_EXE%") do set "LLAMA_EXE_DIR=%%~dpI"
 
@@ -246,14 +305,21 @@ echo Models API:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
 echo Ctx:         %LLAMA_CTX%
 echo GPU layers:  %LLAMA_GPU_LAYERS%
 echo Alias:       %LLAMA_ALIAS%
+if defined LLAMA_SAMPLING_PROFILE echo Sampling:    %LLAMA_SAMPLING_PROFILE%
+if defined LLAMA_TEMPERATURE echo Temp:        %LLAMA_TEMPERATURE%
+if defined LLAMA_TOP_K echo Top-K:       %LLAMA_TOP_K%
+if defined LLAMA_TOP_P echo Top-P:       %LLAMA_TOP_P%
+if defined LLAMA_MIN_P echo Min-P:       %LLAMA_MIN_P%
+if defined LLAMA_PRESENCE_PENALTY echo Presence:    %LLAMA_PRESENCE_PENALTY%
+if defined LLAMA_REPEAT_PENALTY echo Repeat:      %LLAMA_REPEAT_PENALTY%
 echo Log:         %LOG_FILE%
 echo.
 
 call :log Launch command:
 if defined MMPROJ_FILE_RESOLVED (
-    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --mmproj "%MMPROJ_FILE_RESOLVED%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --mmproj "%MMPROJ_FILE_RESOLVED%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%" --temp "%LLAMA_TEMPERATURE%" --top-k "%LLAMA_TOP_K%" --top-p "%LLAMA_TOP_P%" --min-p "%LLAMA_MIN_P%" --presence-penalty "%LLAMA_PRESENCE_PENALTY%" --repeat-penalty "%LLAMA_REPEAT_PENALTY%"
 ) else (
-    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%"
+    call :log "%LLAMA_EXE%" --model "%MODEL_FILE%" --host "%LLAMA_HOST%" --port "%LLAMA_PORT%" --ctx-size "%LLAMA_CTX%" --n-gpu-layers "%LLAMA_GPU_LAYERS%" --alias "%LLAMA_ALIAS%" --temp "%LLAMA_TEMPERATURE%" --top-k "%LLAMA_TOP_K%" --top-p "%LLAMA_TOP_P%" --min-p "%LLAMA_MIN_P%" --presence-penalty "%LLAMA_PRESENCE_PENALTY%" --repeat-penalty "%LLAMA_REPEAT_PENALTY%"
 )
 
 pushd "%LLAMA_EXE_DIR%" >nul 2>&1
@@ -272,7 +338,13 @@ if defined MMPROJ_FILE_RESOLVED (
     --port "%LLAMA_PORT%" ^
     --ctx-size "%LLAMA_CTX%" ^
     --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-    --alias "%LLAMA_ALIAS%"
+    --alias "%LLAMA_ALIAS%" ^
+    --temp "%LLAMA_TEMPERATURE%" ^
+    --top-k "%LLAMA_TOP_K%" ^
+    --top-p "%LLAMA_TOP_P%" ^
+    --min-p "%LLAMA_MIN_P%" ^
+    --presence-penalty "%LLAMA_PRESENCE_PENALTY%" ^
+    --repeat-penalty "%LLAMA_REPEAT_PENALTY%"
 ) else (
   "%LLAMA_EXE%" ^
     --model "%MODEL_FILE%" ^
@@ -280,7 +352,13 @@ if defined MMPROJ_FILE_RESOLVED (
     --port "%LLAMA_PORT%" ^
     --ctx-size "%LLAMA_CTX%" ^
     --n-gpu-layers "%LLAMA_GPU_LAYERS%" ^
-    --alias "%LLAMA_ALIAS%"
+    --alias "%LLAMA_ALIAS%" ^
+    --temp "%LLAMA_TEMPERATURE%" ^
+    --top-k "%LLAMA_TOP_K%" ^
+    --top-p "%LLAMA_TOP_P%" ^
+    --min-p "%LLAMA_MIN_P%" ^
+    --presence-penalty "%LLAMA_PRESENCE_PENALTY%" ^
+    --repeat-penalty "%LLAMA_REPEAT_PENALTY%"
 )
 
 set "SERVER_EXIT=%ERRORLEVEL%"
