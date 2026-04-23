@@ -2,6 +2,20 @@
   "$schema": "https://opencode.ai/config.json",
 
   "model": "llama.cpp/qwen3.6-vision",
+  "default_agent": "loose",
+
+  "agent": {
+    "loose": {
+      "mode": "primary",
+      "description": "Less restricted mode with auto-approved actions and fewer guardrails",
+      "prompt": "{file:./prompts/loose-prompt.txt}",
+      "permission": {
+        "*": "allow",
+        "external_directory": "ask",
+        "doom_loop": "ask"
+      }
+    }
+  },
 
   "provider": {
     "llama.cpp": {
@@ -16,7 +30,7 @@
         "qwen3.6-vision": {
           "name": "Qwen 3.6 Vision (local)",
           "limit": {
-            "context": 32768,
+            "context": 65536,
             "output": 8192
           },
           "modalities": {
@@ -27,7 +41,7 @@
         "qwen-local": {
           "name": "Qwen local",
           "limit": {
-            "context": 32768,
+            "context": 65536,
             "output": 8192
           }
         }

@@ -26,6 +26,7 @@ runtime/llama.cpp/.gitkeep
 
 # Local Python environments
 .venv/
+.venv-aider/
 venv/
 env/
 ENV/
@@ -34,6 +35,12 @@ ENV/
 # Recommended: each generated app should be its own separate repo
 projects/*
 projects/.gitkeep
+
+# Docs - media files and user content
+docs/
+
+# Backup files
+backup files - don't touch/
 
 # Logs and temporary files
 logs/*
