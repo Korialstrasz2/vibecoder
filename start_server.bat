@@ -25,9 +25,51 @@ if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
 if not defined LLAMA_EXE set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
 if not defined LLAMA_ENABLE_VISION set "LLAMA_ENABLE_VISION=1"
 
+rem --- Compute mode selection: first interactive question ---
+set "LLAMA_GPU_LAYERS_GPU_DEFAULT=!LLAMA_GPU_LAYERS!"
+echo.
+echo --- Compute Mode ---
+echo 1. CPU only  - no GPU offload
+echo 2. GPU       - use configured GPU layers [default]
+echo.
+echo Choose compute mode (1-2) [default 2 in 4 seconds].
+echo Press Enter for GPU.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$timeout = 4;" ^
+  "$deadline = [DateTime]::UtcNow.AddSeconds($timeout);" ^
+  "Write-Host -NoNewline 'Selection: ';" ^
+  "while ([DateTime]::UtcNow -lt $deadline) {" ^
+  "  if ([Console]::KeyAvailable) {" ^
+  "    $key = [Console]::ReadKey($true);" ^
+  "    if ($key.Key -eq 'Enter') { Write-Host ''; exit 2 }" ^
+  "    if ($key.KeyChar -eq '1') { Write-Host '1'; exit 1 }" ^
+  "    if ($key.KeyChar -eq '2') { Write-Host '2'; exit 2 }" ^
+  "  }" ^
+  "  Start-Sleep -Milliseconds 50;" ^
+  "}" ^
+  "Write-Host ''; exit 2"
+
+if errorlevel 2 (
+    set "LLAMA_COMPUTE_MODE=GPU"
+    set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
+) else if errorlevel 1 (
+    set "LLAMA_COMPUTE_MODE=CPU"
+    set "LLAMA_GPU_LAYERS=0"
+) else (
+    rem If PowerShell is unavailable or returns unexpectedly, fail safe to GPU default.
+    set "LLAMA_COMPUTE_MODE=GPU"
+    set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
+)
+
+echo [INFO] Compute mode: !LLAMA_COMPUTE_MODE!
+if /I "!LLAMA_COMPUTE_MODE!"=="CPU" echo [INFO] CPU-only selected: LLAMA_GPU_LAYERS=0
+if /I "!LLAMA_COMPUTE_MODE!"=="GPU" echo [INFO] GPU selected: LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!
+
 call :log LLAMA_HOST=!LLAMA_HOST!
 call :log LLAMA_PORT=!LLAMA_PORT!
 call :log LLAMA_CTX=!LLAMA_CTX!
+call :log LLAMA_COMPUTE_MODE=!LLAMA_COMPUTE_MODE!
 call :log LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!
 call :log LLAMA_ALIAS=!LLAMA_ALIAS!
 call :log LLAMA_ENABLE_VISION=!LLAMA_ENABLE_VISION!
@@ -113,17 +155,24 @@ if defined MODEL_FILE (
     set /a MODEL_COUNT=0
 
     for /r "%CD%\models" %%F in (*.gguf) do (
-        set /a MODEL_COUNT+=1
-        set "MODEL_PATH_!MODEL_COUNT!=%%~fF"
-        set "MODEL_NAME_!MODEL_COUNT!=%%~nxF"
+        set "CANDIDATE_NAME=%%~nxF"
+        echo(!CANDIDATE_NAME!| findstr /I /C:"mmproj" >nul
+        if errorlevel 1 (
+            set /a MODEL_COUNT+=1
+            set "MODEL_PATH_!MODEL_COUNT!=%%~fF"
+            set "MODEL_NAME_!MODEL_COUNT!=%%~nxF"
+            set "REL_PATH=%%~fF"
+            set "REL_PATH=!REL_PATH:%CD%\models\=!"
+            set "MODEL_DISPLAY_!MODEL_COUNT!=!REL_PATH!"
+        )
     )
 
     if !MODEL_COUNT! EQU 0 (
-        call :log ERROR: No .gguf model found under "%CD%\models"
-        echo [ERROR] No .gguf model found in:
+        call :log ERROR: No selectable text .gguf model found under "%CD%\models"
+        echo [ERROR] No selectable text .gguf model found in:
         echo   "%CD%\models"
         echo.
-        echo Put one GGUF file in models\ including subfolders, or set MODEL_FILE in local_settings.bat.
+        echo Put one non-mmproj GGUF file in models\ including subfolders, or set MODEL_FILE in local_settings.bat.
         goto :fail
     )
 
@@ -131,13 +180,14 @@ if defined MODEL_FILE (
         set "MODEL_CHOICE=1"
         call set "MODEL_FILE=%%MODEL_PATH_1%%"
         call set "MODEL_FILE_NAME=%%MODEL_NAME_1%%"
-        call :log Found 1 model, auto-selected: "!MODEL_FILE_NAME!"
+        call set "MODEL_DISPLAY=%%MODEL_DISPLAY_1%%"
+        call :log Found 1 model, auto-selected: "!MODEL_DISPLAY!"
     ) else (
-        call :log Found !MODEL_COUNT! models
+        call :log Found !MODEL_COUNT! selectable text models
         call :log Listing models:
         for /L %%N in (1,1,!MODEL_COUNT!) do (
-            call echo   %%N. %%MODEL_NAME_%%N%%
-            call :log   %%N. %%MODEL_NAME_%%N%%
+            call echo   %%N. %%MODEL_DISPLAY_%%N%%
+            call :log   %%N. %%MODEL_DISPLAY_%%N%%
         )
         echo.
         :ask_model
@@ -157,7 +207,8 @@ if defined MODEL_FILE (
 
         call set "MODEL_FILE=%%MODEL_PATH_!MODEL_CHOICE!%%"
         call set "MODEL_FILE_NAME=%%MODEL_NAME_!MODEL_CHOICE!%%"
-        call :log Selected model option !MODEL_CHOICE!
+        call set "MODEL_DISPLAY=%%MODEL_DISPLAY_!MODEL_CHOICE!%%"
+        call :log Selected model option !MODEL_CHOICE!: "!MODEL_DISPLAY!"
         call :log MODEL_FILE selected: "!MODEL_FILE!"
     )
 )
@@ -243,27 +294,25 @@ if /I "!LLAMA_ENABLE_VISION!"=="0" (
     )
 
     if not defined MMPROJ_FILE_RESOLVED (
+        call :try_mmproj_same_dir
+    )
+
+    if not defined MMPROJ_FILE_RESOLVED (
         call :try_mmproj_family "%CD%\model_vision"
         if not defined MMPROJ_FILE_RESOLVED call :try_mmproj_family "%CD%\models"
     )
 
-    if not defined MMPROJ_FILE_RESOLVED (
-        call :try_mmproj_generic "%CD%\model_vision"
-        if not defined MMPROJ_FILE_RESOLVED call :try_mmproj_generic "%CD%\models"
-    )
+    rem Deliberately do not auto-load a generic mmproj*.gguf. Projectors are family-specific.
+    rem To force a specific projector, set MMPROJ_FILE in local_settings.bat.
 
     if not defined MMPROJ_FILE_RESOLVED (
-        call :log No mmproj file detected; server will start in text-only mode unless the model bundles projector weights
-        echo [WARN] No mmproj file detected in model_vision\ or models\.
-        echo        Vision/image input may fail unless your model bundles projector weights.
+        call :log No compatible family-specific mmproj detected; server will start in text-only mode
+        echo [WARN] No compatible family-specific mmproj detected.
+        echo        Starting text-only to avoid loading the wrong projector.
+        echo        To force vision, set MMPROJ_FILE explicitly in local_settings.bat.
     ) else (
         call :log Vision projector selected [!MMPROJ_MATCH_QUALITY!]: "!MMPROJ_FILE_RESOLVED!"
         echo [INFO] Vision projector: "!MMPROJ_FILE_RESOLVED!"
-        if /I "!MMPROJ_MATCH_QUALITY!"=="generic" (
-            echo [WARN] The projector match was generic, not family-specific.
-            echo        If vision behaves oddly, set MMPROJ_FILE explicitly in local_settings.bat.
-            call :log WARNING: mmproj match is generic; explicit MMPROJ_FILE is recommended
-        )
     )
 )
 
@@ -366,8 +415,32 @@ echo Server exited normally.
 call :log Script finished successfully
 goto :end
 
+:try_mmproj_same_dir
+for %%I in ("!MODEL_FILE!") do set "MODEL_DIR=%%~dpI"
+if not exist "!MODEL_DIR!" exit /b 0
+for %%F in ("!MODEL_DIR!*mmproj*.gguf") do (
+    if exist "%%~fF" (
+        if not defined MMPROJ_FILE_RESOLVED (
+            set "MMPROJ_FILE_RESOLVED=%%~fF"
+            set "MMPROJ_MATCH_QUALITY=same-folder"
+        )
+    )
+)
+exit /b 0
+
 :try_mmproj_family
 if not exist "%~1" exit /b 0
+
+echo !MODEL_FILE_NAME! | findstr /I /C:"gemma" >nul
+if not errorlevel 1 (
+    for /r "%~1" %%F in (*gemma*mmproj*.gguf mmproj*gemma*.gguf) do (
+        if not defined MMPROJ_FILE_RESOLVED (
+            set "MMPROJ_FILE_RESOLVED=%%~fF"
+            set "MMPROJ_MATCH_QUALITY=family-gemma"
+        )
+    )
+    if defined MMPROJ_FILE_RESOLVED exit /b 0
+)
 
 echo !MODEL_FILE_NAME! | findstr /I /C:"Qwen3.6-27B" >nul
 if not errorlevel 1 (
@@ -415,14 +488,8 @@ if not errorlevel 1 (
 
 exit /b 0
 
+rem Generic projector fallback intentionally disabled. A wrong projector can crash llama-server.
 :try_mmproj_generic
-if not exist "%~1" exit /b 0
-for /r "%~1" %%F in (mmproj*.gguf) do (
-    if not defined MMPROJ_FILE_RESOLVED (
-        set "MMPROJ_FILE_RESOLVED=%%~fF"
-        set "MMPROJ_MATCH_QUALITY=generic"
-    )
-)
 exit /b 0
 
 :fail
