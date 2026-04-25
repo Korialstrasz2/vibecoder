@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "llama.cpp/gemma-small-vision",
+  "model": "llama.cpp/gemma-4-local-audio",
   "default_agent": "loose",
   "agent": {
     "loose": {
@@ -21,8 +21,8 @@
         "baseURL": "http://127.0.0.1:8075/v1"
       },
       "models": {
-        "gemma-small-vision": {
-          "name": "Gemma 4 Small Vision (local)",
+        "gemma-4-local-audio": {
+          "name": "Gemma 4 Local Audio/Vision (llama.cpp)",
           "limit": {
             "context": 16384,
             "output": 8192
@@ -30,7 +30,8 @@
           "modalities": {
             "input": [
               "text",
-              "image"
+              "image",
+              "audio"
             ],
             "output": [
               "text"

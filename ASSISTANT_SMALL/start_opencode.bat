@@ -32,7 +32,7 @@ if errorlevel 1 (
 )
 
 echo Checking assistant llama-server at http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models ...
-curl -s --max-time 3 "http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models" >nul 2>nul
+curl.exe -s --max-time 3 "http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models" >nul 2>nul
 if errorlevel 1 (
   call :log WARNING: Assistant server check failed
   echo [WARN] Could not reach the ASSISTANT_SMALL model server.
@@ -44,6 +44,10 @@ if errorlevel 1 (
   echo   http://%LLAMA_HOST%:%LLAMA_PORT%/v1/models
   echo.
 )
+
+echo Voice helper, after server is running:
+echo   ASSISTANT_SMALL\voice_to_clipboard.bat 8
+echo.
 
 if not exist "%ROOT_DIR%\projects" mkdir "%ROOT_DIR%\projects"
 cd /d "%ROOT_DIR%\projects"
