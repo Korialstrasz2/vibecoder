@@ -27,9 +27,9 @@ if "%MAIN_PC_IP%"=="" (
   goto :fail
 )
 
-set "MAIN_PC_PORT=8080"
-set /p MAIN_PC_PORT=Enter MAIN PC port [8080]: 
-if "%MAIN_PC_PORT%"=="" set "MAIN_PC_PORT=8080"
+set "MAIN_PC_PORT=8076"
+set /p MAIN_PC_PORT=Enter MAIN PC port [8076]: 
+if "%MAIN_PC_PORT%"=="" set "MAIN_PC_PORT=8076"
 
 set "REMOTE_BASE_URL=http://%MAIN_PC_IP%:%MAIN_PC_PORT%/v1"
 call :log Using REMOTE_BASE_URL=%REMOTE_BASE_URL%

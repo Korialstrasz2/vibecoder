@@ -16,10 +16,10 @@ call :log Root dir: %ROOT_DIR%
 call :log Timestamp: %DATE% %TIME%
 
 echo.
-echo === Starting OpenCode (bundled/default config) ===
-echo NOTE: This launcher does NOT copy config\opencode\opencode.jsonc.
-echo It uses your standard OpenCode config location/bundled defaults.
+echo === Starting OpenCode (ASSISTANT_SMALL local config) ===
+echo Using config: %~dp0opencode.jsonc
 echo.
+set "OPENCODE_CONFIG=%~dp0opencode.jsonc"
 
 where opencode >nul 2>nul
 if errorlevel 1 (
@@ -49,11 +49,9 @@ if not exist "%ROOT_DIR%\projects" mkdir "%ROOT_DIR%\projects"
 cd /d "%ROOT_DIR%\projects"
 
 echo === Starting OpenCode ===
-echo Project folder:
-echo   "%CD%"
-echo.
-echo In OpenCode, select your assistant provider/model mapped to:
-echo   http://%LLAMA_HOST%:%LLAMA_PORT%/v1
+echo Project folder: "%CD%"
+echo Model server:  http://%LLAMA_HOST%:%LLAMA_PORT%/v1
+echo Config file:   %OPENCODE_CONFIG%
 echo.
 
 opencode

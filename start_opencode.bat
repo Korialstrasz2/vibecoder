@@ -65,8 +65,8 @@ if errorlevel 1 (
   goto :fail
 )
 
-echo Checking local llama-server at http://127.0.0.1:8080/v1/models ...
-curl -s --max-time 3 "http://127.0.0.1:8080/v1/models" >nul 2>nul
+echo Checking local llama-server at http://127.0.0.1:8076/v1/models ...
+curl -s --max-time 3 "http://127.0.0.1:8076/v1/models" >nul 2>nul
 if errorlevel 1 (
   call :log ERROR: Local server check failed
   echo [ERROR] Could not reach the local model server.
@@ -75,7 +75,7 @@ if errorlevel 1 (
   echo   start_server.bat
   echo.
   echo Then check this URL in a browser:
-  echo   http://127.0.0.1:8080/v1/models
+  echo   http://127.0.0.1:8076/v1/models
   echo.
   goto :fail
 )

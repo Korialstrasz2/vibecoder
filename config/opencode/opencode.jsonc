@@ -19,13 +19,13 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "llama-server (local)",
       "options": {
-        "baseURL": "http://127.0.0.1:8080/v1"
+        "baseURL": "http://127.0.0.1:8076/v1"
       },
       "models": {
         "qwen3.6-vision": {
           "name": "Qwen 3.6 Vision (local)",
           "limit": {
-            "context": 131072,
+            "context": 65536,
             "output": 8192
           },
           "modalities": {
@@ -41,7 +41,7 @@
         "qwen-local": {
           "name": "Qwen local",
           "limit": {
-            "context": 131072,
+            "context": 65536,
             "output": 8192
           }
         }
@@ -49,6 +49,8 @@
     }
   }
 }
+
+
 
 
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 HOST="${LLAMA_HOST:-127.0.0.1}"
-PORT="${LLAMA_PORT:-8080}"
+PORT="${LLAMA_PORT:-8076}"
 HF_REPO="${HF_REPO:-ggml-org/Qwen3.6-35B-A3B-GGUF}"
 MODE="${LLAMA_MODE:-hf}"
 

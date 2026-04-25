@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama.cpp/gemma-small-vision",
+  "default_agent": "loose",
+  "agent": {
+    "loose": {
+      "mode": "primary",
+      "description": "Less restricted mode with auto-approved actions",
+      "permission": {
+        "*": "allow",
+        "external_directory": "ask",
+        "doom_loop": "ask"
+      }
+    }
+  },
+  "provider": {
+    "llama.cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama-server (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8075/v1"
+      },
+      "models": {
+        "gemma-small-vision": {
+          "name": "Gemma 4 Small Vision (local)",
+          "limit": {
+            "context": 16384,
+            "output": 8192
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

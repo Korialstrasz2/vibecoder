@@ -18,7 +18,7 @@ start_server.bat
 
 When healthy, your local OpenAI-compatible endpoint is typically:
 
-- Base URL: `http://127.0.0.1:8080/v1`
+- Base URL: `http://127.0.0.1:8076/v1`
 
 ## 2) Install the OpenCode config
 
@@ -54,7 +54,7 @@ Inside OpenCode:
 2. Go to **Providers** (or equivalent model/provider settings screen).
 3. Confirm there is a local llama.cpp/OpenAI-compatible provider entry.
 4. Set/check:
-   - **Base URL**: `http://127.0.0.1:8080/v1`
+   - **Base URL**: `http://127.0.0.1:8076/v1`
    - **Model**: `llama.cpp/qwen-local`
 5. Save settings.
 
@@ -75,7 +75,7 @@ You can create/update `local_settings.bat` in the repo root and set values such 
 
 ```bat
 set LLAMA_HOST=127.0.0.1
-set LLAMA_PORT=8080
+set LLAMA_PORT=8076
 set LLAMA_CTX=32768
 set LLAMA_GPU_LAYERS=999
 set LLAMA_ALIAS=qwen-local
@@ -157,11 +157,11 @@ model_vision\
 Equivalent llama-server commands:
 
 ```bash
-llama-server -hf ggml-org/Qwen3.6-35B-A3B-GGUF --host 127.0.0.1 --port 8080
+llama-server -hf ggml-org/Qwen3.6-35B-A3B-GGUF --host 127.0.0.1 --port 8076
 ```
 
 ```bash
-llama-server -m "$MODEL_GGUF" --mmproj "$MMPROJ_GGUF" --host 127.0.0.1 --port 8080
+llama-server -m "$MODEL_GGUF" --mmproj "$MMPROJ_GGUF" --host 127.0.0.1 --port 8076
 ```
 
 ### Start OpenCode
@@ -182,7 +182,7 @@ Run the smoke test:
 ./scripts/smoke-test-vision-chat.sh
 ```
 
-It posts a text + image request to `http://127.0.0.1:8080/v1/chat/completions`.
+It posts a text + image request to `http://127.0.0.1:8076/v1/chat/completions`.
 
 ### If OpenCode says the model does not support images
 
@@ -191,5 +191,5 @@ Most likely fixes:
 1. Ensure the OpenCode model entry includes:
    - `"modalities": { "input": ["text", "image"], "output": ["text"] }`
 2. If using manual GGUF mode, confirm `--mmproj` is provided and points to a valid multimodal projector GGUF.
-3. Confirm OpenCode is using the expected model id (`llama.cpp/qwen3.6-vision`) and base URL (`http://127.0.0.1:8080/v1`).
+3. Confirm OpenCode is using the expected model id (`llama.cpp/qwen3.6-vision`) and base URL (`http://127.0.0.1:8076/v1`).
 4. Restart llama-server and OpenCode after config changes.

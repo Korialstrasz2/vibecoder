@@ -56,7 +56,7 @@ Use `start_all.bat` for a full startup flow with validation and logs. It will:
 4. Validate `runtime\llama.cpp\llama-server.exe` and `models\*.gguf`.
 5. Install OpenCode config to `%APPDATA%\opencode\opencode.jsonc`.
 6. Launch `start_server.bat` in a separate window.
-7. Poll `http://127.0.0.1:8080/v1/models` (or your configured host/port) until healthy.
+7. Poll `http://127.0.0.1:8076/v1/models` (or your configured host/port) until healthy.
 8. Launch OpenCode inside `projects\`.
 
 Logs are written to `logs\startup_*.log` and `logs\llama_server_*.log`.
@@ -95,7 +95,7 @@ start_opencode.bat
 `start_server.bat` uses:
 
 - host: 127.0.0.1
-- port: 8080
+- port: 8076
 - context: 32768
 - GPU layers: 999
 - model alias: qwen-local
@@ -107,7 +107,7 @@ For non-Qwen3.6 filenames, it keeps llama.cpp default-like sampling unless overr
 OpenCode config points to:
 
 ```text
-http://127.0.0.1:8080/v1
+http://127.0.0.1:8076/v1
 ```
 
 and model:

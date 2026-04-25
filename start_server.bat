@@ -18,7 +18,7 @@ if exist "local_settings.bat" (
 
 rem --- Defaults ---
 if not defined LLAMA_HOST set "LLAMA_HOST=127.0.0.1"
-if not defined LLAMA_PORT set "LLAMA_PORT=8080"
+if not defined LLAMA_PORT set "LLAMA_PORT=8076"
 if not defined LLAMA_CTX set "LLAMA_CTX=32768"
 if not defined LLAMA_GPU_LAYERS set "LLAMA_GPU_LAYERS=999"
 if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
