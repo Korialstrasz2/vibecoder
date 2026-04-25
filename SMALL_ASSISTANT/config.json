@@ -1,0 +1,39 @@
+{
+  "hotkey": "ctrl+windows+z",
+  "listen_seconds": 5,
+  "sample_rate": 16000,
+  "channels": 1,
+  "stt": {
+    "engine": "whisper.cpp",
+    "whisper_cli_path": "C:/tools/whisper.cpp/main.exe",
+    "model_path": "C:/models/whisper/ggml-base.en.bin",
+    "language": "en",
+    "threads": 8
+  },
+  "router": {
+    "base_url": "http://127.0.0.1:11434/v1",
+    "api_key": "not-needed-for-local",
+    "model": "qwen3:1.7b-instruct",
+    "timeout_seconds": 45
+  },
+  "tts": {
+    "default_engine": "piper",
+    "allow_sapi_fallback": false,
+    "piper_exe": "C:/tools/piper/piper.exe",
+    "piper_model": "C:/tools/piper/voices/en_US-lessac-medium.onnx",
+    "piper_config": "C:/tools/piper/voices/en_US-lessac-medium.onnx.json"
+  },
+  "escalation": {
+    "command": "cmd /c ..\\start_opencode.bat"
+  },
+  "actions": {
+    "start_qwen_low_context_and_opencode": {
+      "command": "cmd /c actions\\start_qwen_low_context_and_opencode.bat",
+      "description": "Start llama-server with profile choice 1 and model choice 3, then open OpenCode."
+    },
+    "open_opencode": {
+      "command": "cmd /c ..\\start_opencode.bat",
+      "description": "Open OpenCode in the projects folder."
+    }
+  }
+}

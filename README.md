@@ -139,6 +139,22 @@ Constraints:
 Before editing files, propose the file structure.
 ```
 
+
+## Side service voice assistant (SMALL_ASSISTANT)
+
+A local side-service agent is available under [`SMALL_ASSISTANT/`](SMALL_ASSISTANT/README.md).
+
+It provides:
+
+- global hotkey trigger (`Ctrl+Win+Z`)
+- local STT with whisper.cpp
+- local router LLM (Qwen3 1.7B via Ollama/OpenAI-compatible endpoint)
+- local Piper TTS
+- whitelisted local action execution
+- escalation action support (e.g., opening main OpenCode flow)
+
+It also includes a predefined action script that starts `start_server.bat` with choices `1` then `3`, then opens OpenCode.
+
 ## Notes
 
 If tool calling behaves badly, reduce ambition:
