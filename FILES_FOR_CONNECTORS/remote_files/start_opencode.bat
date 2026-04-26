@@ -94,18 +94,38 @@ exit /b %EXIT_CODE%
 :read_base_url
 set "BASE_URL="
 set "BASE_URL_FILE=%TEMP%\opencode_baseurl_%RANDOM%%RANDOM%.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '\x22baseURL\x22\s*:\s*\x22([^\x22]+)\x22'); if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '(?i)\x22baseurl\x22\s*:\s*\x22([^\x22]+)\x22'); if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
 if exist "%BASE_URL_FILE%" (
   set /p "BASE_URL="<"%BASE_URL_FILE%"
   del /q "%BASE_URL_FILE%" >nul 2>nul
 )
 if not defined BASE_URL (
-  call :log ERROR: Could not parse baseURL from "%CONFIG_SOURCE%"
-  echo [ERROR] Could not read baseURL from:
+  call :log WARNING: Could not parse baseURL from "%CONFIG_SOURCE%"
+  echo [WARN] Could not read baseURL from:
   echo   "%CONFIG_SOURCE%"
-  exit /b 2
+  echo.
+  call :prompt_for_base_url
+  if errorlevel 1 exit /b 2
+
+  call :write_base_url
+  if errorlevel 1 exit /b 2
 )
 call :log Parsed BASE_URL=%BASE_URL%
+exit /b 0
+
+
+:prompt_for_base_url
+set "NEW_MAIN_PC_IP="
+:prompt_for_base_url_loop
+set /p "NEW_MAIN_PC_IP=Enter MAIN PC IPv4 (blank to cancel): "
+if not defined NEW_MAIN_PC_IP exit /b 2
+echo !NEW_MAIN_PC_IP!| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+if errorlevel 1 (
+  echo [WARN] Invalid IPv4 format. Example: 192.168.1.50
+  goto :prompt_for_base_url_loop
+)
+
+set "BASE_URL=http://!NEW_MAIN_PC_IP!:8076/v1"
 exit /b 0
 
 :write_base_url
