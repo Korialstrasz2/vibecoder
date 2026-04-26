@@ -20,6 +20,18 @@ set "LOCAL_OPENCODE=%NPM_PREFIX%\opencode.cmd"
 set "NODE_DOWNLOAD_URL=https://nodejs.org/dist/v20.19.5/node-v20.19.5-win-x64.zip"
 set "NODE_ZIP=%TEMP%\node-v20.19.5-win-x64.zip"
 
+call :main
+set "EXIT_CODE=%ERRORLEVEL%"
+if not "%EXIT_CODE%"=="0" (
+  echo.
+  echo [ERROR] install.bat failed with exit code %EXIT_CODE%.
+  echo         The console will stay open for troubleshooting.
+  echo         Log file: "%LOG_FILE%"
+  pause
+)
+exit /b %EXIT_CODE%
+
+:main
 call :log ======================================================================
 call :log Starting OpenCode Work Laptop installer in "%CD%"
 call :log Timestamp: %DATE% %TIME%
@@ -29,7 +41,7 @@ if not exist "%TEMPLATE_CONFIG%" (
   call :log ERROR: Missing template config "%TEMPLATE_CONFIG%"
   echo [ERROR] Missing template config:
   echo   "%TEMPLATE_CONFIG%"
-  goto :fatal
+  exit /b 1
 )
 
 set "DEFAULT_MAIN_PC_IP=192.168.1.50"
@@ -45,16 +57,19 @@ if defined DEFAULT_MAIN_PC_IP if /I not "%DEFAULT_MAIN_PC_IP%"=="192.168.1.50" e
 echo   192.168.0.50
 echo   10.0.0.50
 echo.
+
+:prompt_ip
+set "MAIN_PC_IP="
 set /p "MAIN_PC_IP=Enter MAIN PC LAN IPv4 [default %DEFAULT_MAIN_PC_IP%]: "
 if not defined MAIN_PC_IP set "MAIN_PC_IP=%DEFAULT_MAIN_PC_IP%"
 call :log User entered MAIN_PC_IP=%MAIN_PC_IP%
 
-echo %MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+call :validate_ip "%MAIN_PC_IP%"
 if errorlevel 1 (
-  call :log ERROR: Invalid IPv4 format: %MAIN_PC_IP%
-  echo [ERROR] Invalid IPv4 format: %MAIN_PC_IP%
-  echo         Example: 192.168.1.50
-  goto :fatal
+  call :log ERROR: Invalid IPv4 format/range: %MAIN_PC_IP%
+  echo [ERROR] Invalid IPv4 value: %MAIN_PC_IP%
+  echo         Example valid IP: 192.168.1.50
+  goto :prompt_ip
 )
 
 set "BASE_URL=http://%MAIN_PC_IP%:8076/v1"
@@ -70,7 +85,7 @@ if errorlevel 1 (
   echo [ERROR] Failed to generate config.
   echo         See details in:
   echo         "%LOG_FILE%"
-  goto :fatal
+  exit /b 1
 )
 call :log Generated config "%WORK_CONFIG%"
 
@@ -80,7 +95,7 @@ if errorlevel 1 (
   call :log ERROR: Failed to install config to "%USER_CONFIG%"
   echo [ERROR] Failed to install config:
   echo   "%USER_CONFIG%"
-  goto :fatal
+  exit /b 1
 )
 
 if not exist "%LEGACY_CONFIG_DIR%" mkdir "%LEGACY_CONFIG_DIR%"
@@ -88,7 +103,7 @@ copy /Y "%WORK_CONFIG%" "%LEGACY_CONFIG%" >nul 2>nul
 call :log Installed config to "%USER_CONFIG%"
 
 call :ensure_opencode
-if errorlevel 1 goto :fatal
+if errorlevel 1 exit /b 1
 
 echo Testing server reachability at:
 echo   %BASE_URL%/models
@@ -139,6 +154,7 @@ if not exist "%NODE_EXE%" (
     "Expand-Archive -Path '%NODE_ZIP%' -DestinationPath '%TOOLS_DIR%' -Force;" ^
     "$extracted = Get-ChildItem -Path '%TOOLS_DIR%' -Directory ^| Where-Object { $_.Name -like 'node-v*-win-x64' } ^| Sort-Object LastWriteTime -Descending ^| Select-Object -First 1;" ^
     "if (-not $extracted) { throw 'Node archive extraction failed.' };" ^
+    "if (Test-Path '%NODE_DIR%') { Remove-Item -Recurse -Force '%NODE_DIR%' };" ^
     "Rename-Item -Path $extracted.FullName -NewName 'node' -Force" 1>>"%LOG_FILE%" 2>>&1
   if errorlevel 1 (
     call :log ERROR: Could not download/extract portable Node.js.
@@ -189,14 +205,21 @@ echo [OK] Local opencode installed at:
 echo      "%LOCAL_OPENCODE%"
 exit /b 0
 
-:fatal
-echo.
-echo Script failed. Console will stay open.
-echo See log:
-echo   "%LOG_FILE%"
-call :log Script failed with errorlevel %ERRORLEVEL%
-pause
-exit /b 1
+:validate_ip
+set "_ip=%~1"
+echo %_ip%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul || exit /b 1
+for /f "tokens=1-4 delims=." %%a in ("%_ip%") do (
+  set /a o1=%%a, o2=%%b, o3=%%c, o4=%%d >nul 2>&1
+)
+if %o1% LSS 0 exit /b 1
+if %o1% GTR 255 exit /b 1
+if %o2% LSS 0 exit /b 1
+if %o2% GTR 255 exit /b 1
+if %o3% LSS 0 exit /b 1
+if %o3% GTR 255 exit /b 1
+if %o4% LSS 0 exit /b 1
+if %o4% GTR 255 exit /b 1
+exit /b 0
 
 :log
 echo [%DATE% %TIME%] %*>>"%LOG_FILE%"
