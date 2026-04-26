@@ -24,6 +24,7 @@ call :log ======================================================================
 call :log Starting OpenCode Work Laptop installer in "%CD%"
 call :log Timestamp: %DATE% %TIME%
 call :log Log file: "%LOG_FILE%"
+set "PAUSE_ON_FATAL=1"
 
 if not exist "%TEMPLATE_CONFIG%" (
   call :log ERROR: Missing template config "%TEMPLATE_CONFIG%"
@@ -47,13 +48,23 @@ echo   10.0.0.50
 echo.
 set /p "MAIN_PC_IP=Enter MAIN PC LAN IPv4 [default %DEFAULT_MAIN_PC_IP%]: "
 if not defined MAIN_PC_IP set "MAIN_PC_IP=%DEFAULT_MAIN_PC_IP%"
+for /f "tokens=* delims= " %%I in ("%MAIN_PC_IP%") do set "MAIN_PC_IP=%%~I"
+if "%MAIN_PC_IP:~0,1%"==""" if "%MAIN_PC_IP:~-1%"==""" set "MAIN_PC_IP=%MAIN_PC_IP:~1,-1%"
 call :log User entered MAIN_PC_IP=%MAIN_PC_IP%
 
-echo %MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
-if errorlevel 1 (
-  call :log ERROR: Invalid IPv4 format: %MAIN_PC_IP%
-  echo [ERROR] Invalid IPv4 format: %MAIN_PC_IP%
-  echo         Example: 192.168.1.50
+echo %MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*$" >nul
+if not errorlevel 1 (
+  for /f "tokens=1,2 delims=." %%A in ("%MAIN_PC_IP%") do set "MAIN_PC_IP=192.168.%%~A.%%~B"
+  call :log Expanded short MAIN_PC_IP to %MAIN_PC_IP%
+  echo [INFO] Short IP detected. Using: %MAIN_PC_IP%
+)
+
+set "IPV4_VALID=BAD"
+for /f %%V in ('powershell -NoProfile -ExecutionPolicy Bypass -Command "$ip = $env:MAIN_PC_IP; if ($ip -match '^\d{1,3}(\.\d{1,3}){3}$') { $parts = $ip.Split('.') ^| ForEach-Object { [int]$_ }; if (($parts ^| Where-Object { $_ -lt 0 -or $_ -gt 255 }).Count -eq 0) { 'OK' } else { 'BAD' } } else { 'BAD' }"') do set "IPV4_VALID=%%V"
+if /I not "%IPV4_VALID%"=="OK" (
+  call :log ERROR: Invalid IPv4 format/range: %MAIN_PC_IP%
+  echo [ERROR] Invalid IPv4 value: %MAIN_PC_IP%
+  echo         Use full format ^(e.g. 192.168.1.50^) or short format ^(e.g. 1.50^).
   goto :fatal
 )
 
@@ -195,7 +206,7 @@ echo Script failed. Console will stay open.
 echo See log:
 echo   "%LOG_FILE%"
 call :log Script failed with errorlevel %ERRORLEVEL%
-pause
+if "%PAUSE_ON_FATAL%"=="1" pause
 exit /b 1
 
 :log
