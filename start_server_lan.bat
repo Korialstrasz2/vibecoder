@@ -31,7 +31,7 @@ if defined LAN_IP (
 ) else (
   echo LAN IP:       [not detected automatically]
   echo Run ^"ipconfig^" and use your active IPv4 manually.
-  echo Tip: choose the IPv4 of your currently connected adapter (Wi-Fi or Ethernet).
+  echo Tip: choose the IPv4 of your currently connected adapter ^(Wi-Fi or Ethernet^).
 )
 echo.
 echo NOTE: This exposes your model server on your local network.
