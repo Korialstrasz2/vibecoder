@@ -1,0 +1,6 @@
+﻿{
+    "deviceName":  "Microphone Array (Realtek(R) Audio)",
+    "maxVolumeDb":  -13.5,
+    "savedAt":  "2026-04-26T15:34:54.7541478+02:00",
+    "note":  "Auto-selected by voice_to_clipboard_auto_v3.ps1. Delete this file to force re-detection."
+}

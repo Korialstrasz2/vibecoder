@@ -5,7 +5,8 @@ cd /d "%~dp0"
 set "ROOT_DIR=%~dp0.."
 for %%I in ("%ROOT_DIR%") do set "ROOT_DIR=%%~fI"
 
-set "LOG_FILE=%~dp0start_opencode.log"
+set "LOG_FILE=%~dp0system\logs\start_opencode.log"
+if not exist "%~dp0system\logs" mkdir "%~dp0system\logs"
 
 if not defined LLAMA_HOST set "LLAMA_HOST=127.0.0.1"
 if not defined LLAMA_PORT set "LLAMA_PORT=8075"
@@ -46,7 +47,7 @@ if errorlevel 1 (
 )
 
 echo Voice helper, after server is running:
-echo   ASSISTANT_SMALL\voice_to_clipboard.bat 8
+echo   ASSISTANT_SMALL\voice_to_clipboard_auto_v3.bat 8
 echo.
 
 if not exist "%ROOT_DIR%\projects" mkdir "%ROOT_DIR%\projects"

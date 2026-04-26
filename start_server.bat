@@ -151,66 +151,60 @@ if defined MODEL_FILE (
         goto :fail
     )
 ) else (
-    set "MODEL_FILE="
-    set /a MODEL_COUNT=0
+    set "MODEL_SELECTION_FILE=%TEMP%\llama_model_choice_%RANDOM%.txt"
+    if exist "!MODEL_SELECTION_FILE!" del "!MODEL_SELECTION_FILE!" >nul 2>&1
 
-    for /r "%CD%\models" %%F in (*.gguf) do (
-        set "CANDIDATE_NAME=%%~nxF"
-        echo(!CANDIDATE_NAME!| findstr /I /C:"mmproj" >nul
-        if errorlevel 1 (
-            set /a MODEL_COUNT+=1
-            set "MODEL_PATH_!MODEL_COUNT!=%%~fF"
-            set "MODEL_NAME_!MODEL_COUNT!=%%~nxF"
-            set "REL_PATH=%%~fF"
-            set "REL_PATH=!REL_PATH:%CD%\models\=!"
-            set "MODEL_DISPLAY_!MODEL_COUNT!=!REL_PATH!"
-        )
-    )
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$root = Join-Path (Get-Location).Path 'models';" ^
+      "if (-not (Test-Path $root)) { exit 10 }" ^
+      "$models = @(Get-ChildItem -Path $root -Recurse -Filter '*.gguf' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'mmproj' } | Sort-Object DirectoryName, Name);" ^
+      "if ($models.Count -eq 0) { exit 11 }" ^
+      "function Format-Size([long]$bytes) { if ($bytes -ge 1GB) { return ('{0:N1} GB' -f ($bytes / 1GB)) } elseif ($bytes -ge 1MB) { return ('{0:N0} MB' -f ($bytes / 1MB)) } else { return ('{0:N0} KB' -f ($bytes / 1KB)) } }" ^
+      "if ($models.Count -eq 1) { Write-Host ''; Write-Host '=== Available models ==='; Write-Host ('Auto-selected: {0} ({1})' -f $models[0].Name, (Format-Size $models[0].Length)); $models[0].FullName | Set-Content -Encoding ASCII -NoNewline '!MODEL_SELECTION_FILE!'; exit 0 }" ^
+      "Write-Host ''; Write-Host '=== Available models ===';" ^
+      "Write-Host ('{0,3}  {1,9}  {2}' -f '#','Size','Model');" ^
+      "Write-Host ('{0,3}  {1,9}  {2}' -f '---','---------','-----');" ^
+      "$i = 1; foreach ($m in $models) { $rel = $m.FullName.Substring($root.Length).TrimStart('\','/'); $folder = Split-Path $rel -Parent; if ([string]::IsNullOrWhiteSpace($folder)) { $folder = '.' }; Write-Host ('{0,3}  {1,9}  {2}' -f $i, (Format-Size $m.Length), $m.Name); Write-Host ('     folder: {0}' -f $folder); $i++ }" ^
+      "while ($true) { $choice = Read-Host ('Choose model (1-{0}) [default 1]' -f $models.Count); if ([string]::IsNullOrWhiteSpace($choice)) { $choice = '1' }; $n = 0; if ([int]::TryParse($choice, [ref]$n) -and $n -ge 1 -and $n -le $models.Count) { $models[$n - 1].FullName | Set-Content -Encoding ASCII -NoNewline '!MODEL_SELECTION_FILE!'; exit 0 }; Write-Host '[WARN] Invalid selection. Enter a valid number.' }"
 
-    if !MODEL_COUNT! EQU 0 (
+    if errorlevel 11 (
         call :log ERROR: No selectable text .gguf model found under "%CD%\models"
         echo [ERROR] No selectable text .gguf model found in:
         echo   "%CD%\models"
         echo.
         echo Put one non-mmproj GGUF file in models\ including subfolders, or set MODEL_FILE in local_settings.bat.
         goto :fail
+    ) else if errorlevel 10 (
+        call :log ERROR: models folder not found: "%CD%\models"
+        echo [ERROR] models folder not found:
+        echo   "%CD%\models"
+        goto :fail
+    ) else if errorlevel 1 (
+        call :log ERROR: PowerShell model selector failed
+        echo [ERROR] Model selector failed.
+        goto :fail
     )
 
-    if !MODEL_COUNT! EQU 1 (
-        set "MODEL_CHOICE=1"
-        call set "MODEL_FILE=%%MODEL_PATH_1%%"
-        call set "MODEL_FILE_NAME=%%MODEL_NAME_1%%"
-        call set "MODEL_DISPLAY=%%MODEL_DISPLAY_1%%"
-        call :log Found 1 model, auto-selected: "!MODEL_DISPLAY!"
-    ) else (
-        call :log Found !MODEL_COUNT! selectable text models
-        call :log Listing models:
-        for /L %%N in (1,1,!MODEL_COUNT!) do (
-            call echo   %%N. %%MODEL_DISPLAY_%%N%%
-            call :log   %%N. %%MODEL_DISPLAY_%%N%%
-        )
-        echo.
-        :ask_model
-        set "MODEL_CHOICE="
-        set /p "MODEL_CHOICE=Choose model (1-!MODEL_COUNT!) [default 1]: "
-        if not defined MODEL_CHOICE set "MODEL_CHOICE=1"
-
-        echo(!MODEL_CHOICE!| findstr /R "^[1-9][0-9]*$" >nul
-        if errorlevel 1 (
-            echo [WARN] Invalid selection. Enter a number from 1 to !MODEL_COUNT!.
-            goto :ask_model
-        )
-        if !MODEL_CHOICE! GTR !MODEL_COUNT! (
-            echo [WARN] Invalid selection. Enter a number from 1 to !MODEL_COUNT!.
-            goto :ask_model
-        )
-
-        call set "MODEL_FILE=%%MODEL_PATH_!MODEL_CHOICE!%%"
-        call set "MODEL_FILE_NAME=%%MODEL_NAME_!MODEL_CHOICE!%%"
-        call set "MODEL_DISPLAY=%%MODEL_DISPLAY_!MODEL_CHOICE!%%"
-        call :log Selected model option !MODEL_CHOICE!: "!MODEL_DISPLAY!"
-        call :log MODEL_FILE selected: "!MODEL_FILE!"
+    if not exist "!MODEL_SELECTION_FILE!" (
+        call :log ERROR: Model selector did not write a selection file
+        echo [ERROR] Model selector did not return a model.
+        goto :fail
     )
+
+    set /p "MODEL_FILE="<"!MODEL_SELECTION_FILE!"
+    del "!MODEL_SELECTION_FILE!" >nul 2>&1
+
+    if not exist "!MODEL_FILE!" (
+        call :log ERROR: Selected MODEL_FILE does not exist: "!MODEL_FILE!"
+        echo [ERROR] Selected model does not exist:
+        echo   "!MODEL_FILE!"
+        goto :fail
+    )
+
+    for %%I in ("!MODEL_FILE!") do set "MODEL_FILE_NAME=%%~nxI"
+    set "MODEL_DISPLAY=!MODEL_FILE:%CD%\models\=!"
+    call :log MODEL_FILE selected: "!MODEL_FILE!"
+    call :log MODEL_DISPLAY=!MODEL_DISPLAY!
 )
 
 if not defined MODEL_FILE_NAME for %%I in ("!MODEL_FILE!") do set "MODEL_FILE_NAME=%%~nxI"

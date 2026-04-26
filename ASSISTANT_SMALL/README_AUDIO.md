@@ -26,11 +26,8 @@ vibe-coding-portable\
     llama.cpp\
       llama-server.exe
   models\
-    GEMMA_4_LAAARGE\
+    GEMMA_4_LARGE\
       gemma-4-E4B-it-Q4_K_M.gguf
-      mmproj-gemma-4-BF16.gguf
-    GEMMA_4_SMALL\
-      gemma-4-E2B-it-Q6_K.gguf
       mmproj-gemma-4-BF16.gguf
   ASSISTANT_SMALL\
     opencode.jsonc

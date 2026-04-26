@@ -5,10 +5,12 @@ cd /d "%~dp0"
 set "ROOT_DIR=%~dp0.."
 for %%I in ("%ROOT_DIR%") do set "ROOT_DIR=%%~fI"
 
-set "LOG_FILE=%~dp0start_server.log"
+set "LOG_FILE=%~dp0system\logs\start_server.log"
+if not exist "%~dp0system\logs" mkdir "%~dp0system\logs"
+if not exist "%~dp0system\cache" mkdir "%~dp0system\cache"
 
 call :log ==========================================
-call :log Starting ASSISTANT_SMALL Gemma 4 llama-server launcher in "%CD%"
+call :log Starting ASSISTANT_LARGE Gemma 4 llama-server launcher in "%CD%"
 call :log Root dir: %ROOT_DIR%
 call :log Timestamp: %DATE% %TIME%
 
@@ -19,9 +21,11 @@ if exist "%ROOT_DIR%\local_settings.bat" (
 )
 
 rem --- Load optional assistant-specific overrides ---
-if exist "%~dp0local_settings_small.bat" (
-    call :log Found local_settings_small.bat, loading it
-    call "%~dp0local_settings_small.bat"
+if exist "%~dp0local_settings_large.bat" (
+    call :log Found local_settings_large.bat, loading it
+    call "%~dp0local_settings_large.bat"
+) else (
+    call :log local_settings_large.bat not found beside launcher; continuing with auto-detection
 )
 
 rem --- Fixed defaults ---
@@ -35,6 +39,16 @@ if not defined LLAMA_ENABLE_MULTIMODAL set "LLAMA_ENABLE_MULTIMODAL=1"
 if not defined LLAMA_REQUIRE_MMPROJ set "LLAMA_REQUIRE_MMPROJ=1"
 if not defined LLAMA_JINJA set "LLAMA_JINJA=1"
 if not defined LLAMA_FLASH_ATTN set "LLAMA_FLASH_ATTN=on"
+
+rem =========================
+rem CPU / GPU SELECTION
+rem =========================
+rem Default is CPU if no key is pressed within 4 seconds.
+rem Press ENTER or type G/2 to use GPU. Type C/1 to force CPU.
+if not defined ASSISTANT_SKIP_ACCEL_PROMPT (
+    call :select_acceleration
+)
+
 
 rem --- Gemma 4 recommended-ish generation defaults ---
 if not defined LLAMA_TEMPERATURE set "LLAMA_TEMPERATURE=1.0"
@@ -68,92 +82,40 @@ rem =========================
 rem MODEL SELECTION
 rem =========================
 if defined MODEL_FILE (
-    call :log MODEL_FILE preset to "!MODEL_FILE!", skipping selection prompt
+    call :log MODEL_FILE preset to "!MODEL_FILE!", skipping auto-detection
 ) else (
-    set "GEMMA_SMALL_MODEL="
     set "GEMMA_LARGE_MODEL="
-    set "GEMMA_SMALL_DIR=%ROOT_DIR%\models\GEMMA_4_SMALL"
-    set "GEMMA_LARGE_DIR=%ROOT_DIR%\models\GEMMA_4_LAAARGE"
-
-    if exist "!GEMMA_SMALL_DIR!" (
-        for /f "delims=" %%F in ('dir /b /a-d "!GEMMA_SMALL_DIR!\*E2B*.gguf" 2^>nul') do (
-            if not defined GEMMA_SMALL_MODEL set "GEMMA_SMALL_MODEL=!GEMMA_SMALL_DIR!\%%F"
-        )
-        if not defined GEMMA_SMALL_MODEL (
-            for /f "delims=" %%F in ('dir /b /a-d "!GEMMA_SMALL_DIR!\*gemma*.gguf" 2^>nul ^| findstr /I /V "mmproj"') do (
-                if not defined GEMMA_SMALL_MODEL set "GEMMA_SMALL_MODEL=!GEMMA_SMALL_DIR!\%%F"
-            )
-        )
-    )
+    set "GEMMA_LARGE_DIR=%ROOT_DIR%\models\GEMMA_4_LARGE"
 
     if exist "!GEMMA_LARGE_DIR!" (
-        for /f "delims=" %%F in ('dir /b /a-d "!GEMMA_LARGE_DIR!\*E4B*.gguf" 2^>nul') do (
-            if not defined GEMMA_LARGE_MODEL set "GEMMA_LARGE_MODEL=!GEMMA_LARGE_DIR!\%%F"
+        rem Prefer E4B model files, but avoid fragile DIR/FINDSTR pipes.
+        for %%F in ("!GEMMA_LARGE_DIR!\*E4B*.gguf") do (
+            if not defined GEMMA_LARGE_MODEL if exist "%%~fF" set "GEMMA_LARGE_MODEL=%%~fF"
         )
         if not defined GEMMA_LARGE_MODEL (
-            for /f "delims=" %%F in ('dir /b /a-d "!GEMMA_LARGE_DIR!\*gemma*.gguf" 2^>nul ^| findstr /I /V "mmproj"') do (
-                if not defined GEMMA_LARGE_MODEL set "GEMMA_LARGE_MODEL=!GEMMA_LARGE_DIR!\%%F"
+            for %%F in ("!GEMMA_LARGE_DIR!\*gemma*.gguf") do (
+                echo %%~nxF | findstr /I "mmproj" >nul
+                if errorlevel 1 if not defined GEMMA_LARGE_MODEL if exist "%%~fF" set "GEMMA_LARGE_MODEL=%%~fF"
             )
         )
+        if not defined GEMMA_LARGE_MODEL if exist "!GEMMA_LARGE_DIR!\gemma-4-E4B-it-Q6_K.gguf" set "GEMMA_LARGE_MODEL=!GEMMA_LARGE_DIR!\gemma-4-E4B-it-Q6_K.gguf"
+    ) else (
+        call :log GEMMA_LARGE_DIR not found: !GEMMA_LARGE_DIR!
     )
 
-    set "HAS_SMALL=0"
-    set "HAS_LARGE=0"
-    if defined GEMMA_SMALL_MODEL set "HAS_SMALL=1"
-    if defined GEMMA_LARGE_MODEL set "HAS_LARGE=1"
+    if defined GEMMA_LARGE_MODEL call :log Detected large model: !GEMMA_LARGE_MODEL!
 
-    if "!HAS_SMALL!"=="0" if "!HAS_LARGE!"=="0" (
-        call :log ERROR: No Gemma models found in GEMMA_4_SMALL or GEMMA_4_LAAARGE
-        echo [ERROR] No Gemma GGUF found. Expected one of:
-        echo   %ROOT_DIR%\models\GEMMA_4_SMALL\*.gguf
-        echo   %ROOT_DIR%\models\GEMMA_4_LAAARGE\*.gguf
+    if not defined GEMMA_LARGE_MODEL (
+        call :log ERROR: No Gemma large model found in GEMMA_4_LARGE
+        echo [ERROR] No Gemma large GGUF found. Expected:
+        echo   %ROOT_DIR%\models\GEMMA_4_LARGE\*.gguf
         goto :fail
     )
 
-    if "!HAS_SMALL!"=="1" if "!HAS_LARGE!"=="0" (
-        set "MODEL_FILE=!GEMMA_SMALL_MODEL!"
-        set "MODEL_KIND=Gemma-4-E2B"
-        call :log Only small Gemma available, auto-selecting E2B
-    ) else if "!HAS_SMALL!"=="0" if "!HAS_LARGE!"=="1" (
-        set "MODEL_FILE=!GEMMA_LARGE_MODEL!"
-        set "MODEL_KIND=Gemma-4-E4B"
-        call :log Only large Gemma available, auto-selecting E4B
-    ) else (
-        echo.
-        echo --- Gemma Model Selection ---
-        echo 1. Small  - Gemma-4-E2B ^(faster, less capable^)
-        echo 2. Large  - Gemma-4-E4B ^(default, better for voice/coding^)
-        echo.
-        choice /C 12 /N /T 4 /D 2 /M "Choose model [1-2, default 2 in 4 seconds]: "
-        set "CHOICE_CODE=!ERRORLEVEL!"
-        if "!CHOICE_CODE!"=="1" (
-            set "MODEL_FILE=!GEMMA_SMALL_MODEL!"
-            set "MODEL_KIND=Gemma-4-E2B"
-            echo [INFO] Selected: Gemma-4-E2B ^(Small^)
-            call :log Selected Gemma-4-E2B
-        ) else (
-            set "MODEL_FILE=!GEMMA_LARGE_MODEL!"
-            set "MODEL_KIND=Gemma-4-E4B"
-            echo [INFO] Selected/defaulted: Gemma-4-E4B ^(Large^)
-            call :log Selected/defaulted Gemma-4-E4B
-        )
-    )
+    set "MODEL_FILE=!GEMMA_LARGE_MODEL!"
+    set "MODEL_KIND=Gemma-4-E4B"
+    call :log Auto-selected Gemma-4-E4B large model
 )
-
-if not defined MODEL_FILE (
-    call :log ERROR: MODEL_FILE is not set
-    echo [ERROR] Could not determine model file.
-    goto :fail
-)
-
-if not exist "!MODEL_FILE!" (
-    call :log ERROR: MODEL_FILE does not exist: "!MODEL_FILE!"
-    echo [ERROR] Model file does not exist:
-    echo   "!MODEL_FILE!"
-    goto :fail
-)
-
-call :log MODEL_FILE=!MODEL_FILE!
 
 rem =========================
 rem MMPROJ RESOLUTION
@@ -161,8 +123,21 @@ rem =========================
 set "MMPROJ_FILE_RESOLVED="
 set "HAS_MMPROJ=0"
 
-if /I not "!LLAMA_ENABLE_MULTIMODAL!"=="0" (
-    rem Same-folder only by default. Avoid accidental E4B model + E2B projector mismatch.
+if defined MMPROJ_FILE (
+    if exist "!MMPROJ_FILE!" (
+        set "MMPROJ_FILE_RESOLVED=!MMPROJ_FILE!"
+        set "HAS_MMPROJ=1"
+        call :log MMPROJ_FILE preset to "!MMPROJ_FILE!", skipping detection
+    ) else (
+        call :log ERROR: MMPROJ_FILE does not exist: "!MMPROJ_FILE!"
+        echo [ERROR] MMPROJ_FILE does not exist:
+        echo   "!MMPROJ_FILE!"
+        goto :fail
+    )
+)
+
+if /I not "!LLAMA_ENABLE_MULTIMODAL!"=="0" if "!HAS_MMPROJ!"=="0" (
+    rem Same-folder only by default. Avoid mismatching a model with the wrong projector.
     for %%I in ("!MODEL_FILE!") do set "MODEL_DIR=%%~dpI"
     call :find_mmproj_in_dir "!MODEL_DIR!"
 
@@ -178,14 +153,14 @@ if /I not "!LLAMA_ENABLE_MULTIMODAL!"=="0" (
         echo Expected something like:
         echo   mmproj-gemma-4-BF16.gguf
         echo.
-        echo To force text-only startup, set LLAMA_REQUIRE_MMPROJ=0 in local_settings_small.bat.
+        echo To force text-only startup, set LLAMA_REQUIRE_MMPROJ=0 in local_settings_large.bat.
         if /I not "!LLAMA_REQUIRE_MMPROJ!"=="0" goto :fail
     )
 ) else (
     call :log LLAMA_ENABLE_MULTIMODAL=0, skipping mmproj detection
 )
 
-rem Keep OpenCode stable. One alias works whether the launcher selected E2B or E4B.
+rem Keep OpenCode stable with a single large-model alias.
 set "LLAMA_ALIAS=gemma-4-local-audio"
 
 set "JINJA_ARG="
@@ -204,6 +179,8 @@ echo Model:  !MODEL_FILE!
 if "!HAS_MMPROJ!"=="1" echo mmproj: !MMPROJ_FILE_RESOLVED!
 echo URL:    http://!LLAMA_HOST!:!LLAMA_PORT!/v1
 echo Alias:  !LLAMA_ALIAS!
+echo Accel:  !ASSISTANT_ACCEL_MODE!
+if defined CUDA_VISIBLE_DEVICES echo CUDA_VISIBLE_DEVICES=!CUDA_VISIBLE_DEVICES!
 echo.
 
 pushd "!LLAMA_EXE_DIR!" >nul
@@ -257,6 +234,128 @@ if not "!EXIT_CODE!"=="0" (
 
 echo Server exited normally
 goto :end
+
+
+:select_acceleration
+set "ASSISTANT_ACCEL_MODE=CPU only"
+set "ACCEL_CHOICE_FILE=%TEMP%\assistant_large_accel_choice_%RANDOM%.tmp"
+if exist "!ACCEL_CHOICE_FILE!" del "!ACCEL_CHOICE_FILE!" >nul 2>nul
+
+echo.
+echo --- Acceleration Selection ---
+echo 1. CPU only ^(default if no key is pressed in 4 seconds; hides all CUDA GPUs^)
+echo 2. RTX 4070 only ^(recommended; keeps RTX 3090/eGPU idle^)
+echo 3. All CUDA GPUs
+echo.
+echo Press ENTER or type R/G/2 for RTX 4070 only.
+echo Type A/3 for all CUDA GPUs.
+echo Type C/1 for CPU only.
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%ACCEL_CHOICE_FILE%'; $deadline=(Get-Date).AddSeconds(4); $choice='TIMEOUT'; while((Get-Date) -lt $deadline){ if([Console]::KeyAvailable){ $k=[Console]::ReadKey($true); if($k.Key -eq 'Enter'){ $choice='RTX4070'; break }; $ch=([string]$k.KeyChar).Trim(); if($ch -match '^(?i:r|g|2)$'){ Write-Host -NoNewline $k.KeyChar; $choice='RTX4070'; break }; if($ch -match '^(?i:a|3)$'){ Write-Host -NoNewline $k.KeyChar; $choice='ALLGPU'; break }; if($ch -match '^(?i:c|1)$'){ Write-Host -NoNewline $k.KeyChar; $choice='CPU'; break }; Write-Host -NoNewline $k.KeyChar; $choice='INVALID'; break } Start-Sleep -Milliseconds 25 }; [System.IO.File]::WriteAllText($p, $choice, [System.Text.Encoding]::ASCII)"
+
+set "ACCEL_RAW=TIMEOUT"
+if exist "!ACCEL_CHOICE_FILE!" (
+    set /p ACCEL_RAW=<"!ACCEL_CHOICE_FILE!"
+    del "!ACCEL_CHOICE_FILE!" >nul 2>nul
+)
+set "ACCEL_RAW=!ACCEL_RAW: =!"
+
+echo.
+if /I "!ACCEL_RAW!"=="TIMEOUT" (
+    echo [INFO] No key within 4 seconds. Defaulting to CPU only.
+    call :use_cpu
+    exit /b 0
+)
+if /I "!ACCEL_RAW!"=="RTX4070" (
+    echo [INFO] RTX 4070-only mode selected.
+    call :use_4070_gpu
+    exit /b 0
+)
+if /I "!ACCEL_RAW!"=="ALLGPU" (
+    echo [INFO] All-GPU mode selected.
+    call :use_all_gpus
+    exit /b 0
+)
+if /I "!ACCEL_RAW!"=="CPU" (
+    echo [INFO] CPU selected.
+    call :use_cpu
+    exit /b 0
+)
+
+echo [INFO] Invalid choice. Defaulting to CPU only.
+call :use_cpu
+exit /b 0
+
+:use_cpu
+set "ASSISTANT_ACCEL_MODE=CPU only"
+set "LLAMA_GPU_LAYERS=0"
+rem CUDA_VISIBLE_DEVICES=-1 hides all CUDA GPUs, including mmproj/CLIP CUDA use.
+set "CUDA_VISIBLE_DEVICES=-1"
+set "CUDA_DEVICE_ORDER=PCI_BUS_ID"
+call :log Acceleration selected: CPU only, LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!, CUDA_VISIBLE_DEVICES=!CUDA_VISIBLE_DEVICES!
+exit /b 0
+
+:use_4070_gpu
+set "ASSISTANT_ACCEL_MODE=GPU - RTX 4070 only"
+if not defined LLAMA_GPU_LAYERS_GPU set "LLAMA_GPU_LAYERS_GPU=99"
+set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU!"
+set "CUDA_DEVICE_ORDER=PCI_BUS_ID"
+call :prefer_4070_gpu
+call :log Acceleration selected: !ASSISTANT_ACCEL_MODE!, LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!, CUDA_VISIBLE_DEVICES=!CUDA_VISIBLE_DEVICES!
+exit /b 0
+
+:use_all_gpus
+set "ASSISTANT_ACCEL_MODE=GPU - all CUDA GPUs"
+if not defined LLAMA_GPU_LAYERS_GPU set "LLAMA_GPU_LAYERS_GPU=99"
+set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU!"
+set "CUDA_DEVICE_ORDER=PCI_BUS_ID"
+rem Unsetting CUDA_VISIBLE_DEVICES lets llama.cpp see every CUDA GPU.
+set "CUDA_VISIBLE_DEVICES="
+call :log Acceleration selected: all CUDA GPUs, LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!, CUDA_VISIBLE_DEVICES=ALL
+exit /b 0
+
+:prefer_4070_gpu
+set "GPU_PICKER=%~dp0system\tools\pick_gpu_llama.py"
+set "GPU_CHOICE_FILE=%~dp0system\cache\gpu_choice.tmp"
+if exist "!GPU_CHOICE_FILE!" del "!GPU_CHOICE_FILE!" >nul 2>nul
+
+call :find_python
+if not defined PYTHON_EXE (
+    echo [ERROR] Python not found. Falling back to CPU to avoid using the RTX 3090/eGPU.
+    call :use_cpu
+    exit /b 0
+)
+
+if exist "!GPU_PICKER!" (
+    "!PYTHON_EXE!" "!GPU_PICKER!" --prefer 4070 --choice-file "!GPU_CHOICE_FILE!"
+) else (
+    echo [ERROR] system\tools\pick_gpu_llama.py not found. Falling back to CPU to avoid using the RTX 3090/eGPU.
+    call :use_cpu
+    exit /b 0
+)
+
+if exist "!GPU_CHOICE_FILE!" (
+    set /p GPU_ID=<"!GPU_CHOICE_FILE!"
+    del "!GPU_CHOICE_FILE!" >nul 2>nul
+    set "CUDA_VISIBLE_DEVICES=!GPU_ID!"
+    set "ASSISTANT_ACCEL_MODE=GPU - RTX 4070 only ^(CUDA_VISIBLE_DEVICES=!GPU_ID!^)"
+    echo [INFO] Restricting llama.cpp to RTX 4070: CUDA_VISIBLE_DEVICES=!GPU_ID!.
+) else (
+    echo [ERROR] GPU picker did not select an RTX 4070. Falling back to CPU to avoid using the RTX 3090/eGPU.
+    call :use_cpu
+)
+exit /b 0
+:find_python
+set "PYTHON_EXE="
+if exist "%ROOT_DIR%\python_embeded\python.exe" set "PYTHON_EXE=%ROOT_DIR%\python_embeded\python.exe"
+if not defined PYTHON_EXE if exist "%ROOT_DIR%\ComfyUI_windows_portable\python_embeded\python.exe" set "PYTHON_EXE=%ROOT_DIR%\ComfyUI_windows_portable\python_embeded\python.exe"
+if not defined PYTHON_EXE (
+    for /f "delims=" %%P in ('where python 2^>nul') do (
+        if not defined PYTHON_EXE set "PYTHON_EXE=%%P"
+    )
+)
+exit /b 0
 
 :fail
 call :log FAILED
