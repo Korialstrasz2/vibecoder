@@ -94,7 +94,7 @@ exit /b %EXIT_CODE%
 :read_base_url
 set "BASE_URL="
 set "BASE_URL_FILE=%TEMP%\opencode_baseurl_%RANDOM%%RANDOM%.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '(?i)\x22baseurl\x22\s*:\s*\x22([^\x22]+)\x22'); if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '(?i)\x22baseurl\x22\s*:\s*\x22([^\x22]+)\x22'); if ($m.Success) { $m.Groups[1].Value | Out-File -Encoding ascii -NoNewline $env:BASE_URL_FILE }"
 if exist "%BASE_URL_FILE%" (
   set /p "BASE_URL="<"%BASE_URL_FILE%"
   del /q "%BASE_URL_FILE%" >nul 2>nul
