@@ -3,7 +3,7 @@ param(
     [string]$HostName = $(if ($env:LLAMA_HOST) { $env:LLAMA_HOST } else { "127.0.0.1" }),
     [string]$Port = $(if ($env:LLAMA_PORT) { $env:LLAMA_PORT } else { "8075" }),
     [string]$Language = "en",
-    [string]$Prompt = "Transcribe exactly. This may include programming terms and Elder Scrolls names such as Divayth Fyr, Telvanni, Morrowind, Sotha Sil, Vivec, Dagoth Ur, Dwemer, and Nerevarine.",
+    [string]$Prompt = "Transcribe exactly. The speaker may use English or Italian naturally within the same utterance. Topics may include programming, everyday conversation, video games, and fantasy references such as Dunmer, Divayth Fyr, Morrowind, Dwemer, Telvanni, Vivec, or Dagoth Ur. Do not assume the speaker is only talking about games or fantasy. Preserve technical terms, code names, commands, and proper nouns exactly as spoken. Keep the transcription concise and faithful to what was said.",
     [double]$MinActiveDb = -50.0
 )
 
