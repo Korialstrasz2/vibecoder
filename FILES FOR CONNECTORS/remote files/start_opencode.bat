@@ -2,6 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
+set "LOG_FILE=%~dp0start_opencode.log"
 set "CONFIG_SOURCE=%~dp0config\opencode\opencode.jsonc"
 set "CONFIG_DIR=%USERPROFILE%\.config\opencode"
 set "CONFIG_DEST=%CONFIG_DIR%\opencode.jsonc"
@@ -9,7 +10,12 @@ set "LEGACY_CONFIG_DIR=%APPDATA%\opencode"
 set "LEGACY_CONFIG_DEST=%LEGACY_CONFIG_DIR%\opencode.jsonc"
 set "LOCAL_OPENCODE=%~dp0tools\npm-global\opencode.cmd"
 
+call :log ======================================================================
+call :log Starting remote start_opencode launcher in "%CD%"
+call :log Timestamp: %DATE% %TIME%
+
 if not exist "%CONFIG_SOURCE%" (
+  call :log ERROR: Missing config source "%CONFIG_SOURCE%"
   echo [ERROR] Missing config file:
   echo   "%CONFIG_SOURCE%"
   echo Run install.bat first.
@@ -20,13 +26,16 @@ if not exist "%CONFIG_DIR%" mkdir "%CONFIG_DIR%"
 copy /Y "%CONFIG_SOURCE%" "%CONFIG_DEST%" >nul
 if not exist "%LEGACY_CONFIG_DIR%" mkdir "%LEGACY_CONFIG_DIR%"
 copy /Y "%CONFIG_SOURCE%" "%LEGACY_CONFIG_DEST%" >nul 2>nul
+call :log Installed config to "%CONFIG_DEST%"
 
 set "OPENCODE_CMD=opencode"
 where opencode >nul 2>nul
 if errorlevel 1 (
   if exist "%LOCAL_OPENCODE%" (
     set "OPENCODE_CMD=%LOCAL_OPENCODE%"
+    call :log Using local opencode command "%OPENCODE_CMD%"
   ) else (
+    call :log ERROR: opencode command not found on PATH or local tools folder
     echo [ERROR] opencode not found.
     echo Run install.bat first to install local dependencies without admin rights.
     goto :fatal
@@ -38,18 +47,22 @@ if errorlevel 1 goto :fatal
 
 :check_server
 if defined BASE_URL (
+  call :log Checking server URL: %BASE_URL%/models
   echo Checking server: %BASE_URL%/models
   curl -s --max-time 5 "%BASE_URL%/models" >nul 2>nul
   if errorlevel 1 (
+    call :log WARNING: Server unreachable at %BASE_URL%/models
     echo.
     echo [WARN] Server not reachable at %BASE_URL%/models
     set /p "NEW_MAIN_PC_IP=Enter MAIN PC IPv4 to retry (blank to cancel): "
     if not defined NEW_MAIN_PC_IP (
+      call :log User cancelled retry prompt.
       echo Cancelled.
       goto :fatal
     )
     echo %NEW_MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
     if errorlevel 1 (
+      call :log WARNING: Invalid IPv4 entered: %NEW_MAIN_PC_IP%
       echo [WARN] Invalid IPv4 format. Example: 192.168.1.50
       goto :check_server
     )
@@ -64,28 +77,41 @@ if defined BASE_URL (
 if not exist "projects" mkdir "projects"
 cd /d "%~dp0projects"
 
+call :log Starting OpenCode command: "%OPENCODE_CMD%"
 echo Starting OpenCode in:
 echo   %CD%
 call "%OPENCODE_CMD%"
-exit /b %ERRORLEVEL%
+set "EXIT_CODE=%ERRORLEVEL%"
+call :log OpenCode exited with code %EXIT_CODE%
+if not "%EXIT_CODE%"=="0" (
+  echo.
+  echo [ERROR] OpenCode exited with code %EXIT_CODE%.
+  echo Press any key to keep this console open for troubleshooting.
+  pause >nul
+)
+exit /b %EXIT_CODE%
 
 :read_base_url
 set "BASE_URL="
 for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; if ($json -match '\"baseURL\"\s*:\s*\"([^\"]+)\"') { Write-Output $matches[1] }"`) do set "BASE_URL=%%I"
 if not defined BASE_URL (
+  call :log ERROR: Could not parse baseURL from "%CONFIG_SOURCE%"
   echo [ERROR] Could not read baseURL from:
   echo   "%CONFIG_SOURCE%"
   exit /b 2
 )
+call :log Parsed BASE_URL=%BASE_URL%
 exit /b 0
 
 :write_base_url
+call :log Updating config baseURL to %BASE_URL%
 echo Updating config baseURL to: %BASE_URL%
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$json = Get-Content -Raw $env:CONFIG_SOURCE;" ^
   "$updated = [regex]::Replace($json, '\"baseURL\"\s*:\s*\"[^\"]+\"', ('\"baseURL\": \"' + $env:BASE_URL + '\"'));" ^
-  "$updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE"
+  "$updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE" 1>>"%LOG_FILE%" 2>>&1
 if errorlevel 1 (
+  call :log ERROR: Failed to update baseURL in config source.
   echo [ERROR] Failed to update baseURL in config source.
   exit /b 2
 )
@@ -96,6 +122,14 @@ exit /b 0
 
 :fatal
 echo.
-echo Script failed. Press any key to close this window.
-pause >nul
+echo Script failed. Console will stay open.
+echo See log:
+echo   "%LOG_FILE%"
+call :log Script failed with errorlevel %ERRORLEVEL%
+pause
 exit /b 1
+
+:log
+echo [%DATE% %TIME%] %*>>"%LOG_FILE%"
+echo [%DATE% %TIME%] %*
+exit /b 0
