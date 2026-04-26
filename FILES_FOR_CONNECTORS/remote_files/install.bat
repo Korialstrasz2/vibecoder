@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "LOG_FILE=%~dp0install.log"
@@ -141,29 +141,30 @@ if exist "%LOCAL_OPENCODE%" (
 echo opencode not found. Installing local portable dependencies...
 call :log opencode not found. Installing local portable dependencies...
 if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create tools directory "%TOOLS_DIR%"
+  echo [ERROR] Failed to create tools directory:
+  echo   "%TOOLS_DIR%"
+  exit /b 2
+)
 if not exist "%NPM_PREFIX%" mkdir "%NPM_PREFIX%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create npm prefix "%NPM_PREFIX%"
+  echo [ERROR] Failed to create npm prefix directory:
+  echo   "%NPM_PREFIX%"
+  exit /b 2
+)
 if not exist "%NPM_CACHE%" mkdir "%NPM_CACHE%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create npm cache "%NPM_CACHE%"
+  echo [ERROR] Failed to create npm cache directory:
+  echo   "%NPM_CACHE%"
+  exit /b 2
+)
 
 if not exist "%NODE_EXE%" (
-  echo [INFO] Downloading portable Node.js (no admin required)...
-  call :log Downloading portable Node.js from %NODE_DOWNLOAD_URL%
-  powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$ErrorActionPreference='Stop';" ^
-    "Invoke-WebRequest -Uri '%NODE_DOWNLOAD_URL%' -OutFile '%NODE_ZIP%';" ^
-    "if (Test-Path '%NODE_DIR%') { Remove-Item -Recurse -Force '%NODE_DIR%' };" ^
-    "Expand-Archive -Path '%NODE_ZIP%' -DestinationPath '%TOOLS_DIR%' -Force;" ^
-    "$extracted = Get-ChildItem -Path '%TOOLS_DIR%' -Directory ^| Where-Object { $_.Name -like 'node-v*-win-x64' } ^| Sort-Object LastWriteTime -Descending ^| Select-Object -First 1;" ^
-    "if (-not $extracted) { throw 'Node archive extraction failed.' };" ^
-    "if (Test-Path '%NODE_DIR%') { Remove-Item -Recurse -Force '%NODE_DIR%' };" ^
-    "Rename-Item -Path $extracted.FullName -NewName 'node' -Force" 1>>"%LOG_FILE%" 2>>&1
-  if errorlevel 1 (
-    call :log ERROR: Could not download/extract portable Node.js.
-    echo [ERROR] Could not download/extract portable Node.js.
-    echo         Check internet/proxy access and rerun install.bat.
-    echo         See detailed output in:
-    echo         "%LOG_FILE%"
-    exit /b 2
-  )
+  call :install_portable_node
+  if errorlevel 1 exit /b 2
 )
 
 if not exist "%NODE_NPM_CMD%" (
@@ -203,6 +204,28 @@ if not exist "%LOCAL_OPENCODE%" (
 call :log Local opencode installed at "%LOCAL_OPENCODE%"
 echo [OK] Local opencode installed at:
 echo      "%LOCAL_OPENCODE%"
+exit /b 0
+
+:install_portable_node
+echo [INFO] Downloading portable Node.js (no admin required)...
+call :log Downloading portable Node.js from %NODE_DOWNLOAD_URL%
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ErrorActionPreference='Stop';" ^
+  "Invoke-WebRequest -Uri $env:NODE_DOWNLOAD_URL -OutFile $env:NODE_ZIP;" ^
+  "if (Test-Path $env:NODE_DIR) { Remove-Item -Recurse -Force $env:NODE_DIR };" ^
+  "Expand-Archive -Path $env:NODE_ZIP -DestinationPath $env:TOOLS_DIR -Force;" ^
+  "$extracted = Get-ChildItem -Path $env:TOOLS_DIR -Directory ^| Where-Object { $_.Name -like 'node-v*-win-x64' } ^| Sort-Object LastWriteTime -Descending ^| Select-Object -First 1;" ^
+  "if (-not $extracted) { throw 'Node archive extraction failed.' };" ^
+  "if (Test-Path $env:NODE_DIR) { Remove-Item -Recurse -Force $env:NODE_DIR };" ^
+  "Move-Item -Path $extracted.FullName -Destination $env:NODE_DIR -Force" 1>>"%LOG_FILE%" 2>>&1
+if errorlevel 1 (
+  call :log ERROR: Could not download/extract portable Node.js.
+  echo [ERROR] Could not download/extract portable Node.js.
+  echo         Check internet/proxy access and rerun install.bat.
+  echo         See detailed output in:
+  echo         "%LOG_FILE%"
+  exit /b 1
+)
 exit /b 0
 
 :validate_ip
