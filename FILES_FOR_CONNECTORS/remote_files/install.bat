@@ -214,7 +214,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Invoke-WebRequest -Uri $env:NODE_DOWNLOAD_URL -OutFile $env:NODE_ZIP;" ^
   "if (Test-Path $env:NODE_DIR) { Remove-Item -Recurse -Force $env:NODE_DIR };" ^
   "Expand-Archive -Path $env:NODE_ZIP -DestinationPath $env:TOOLS_DIR -Force;" ^
-  "$extracted = Get-ChildItem -Path $env:TOOLS_DIR -Directory ^| Where-Object { $_.Name -like 'node-v*-win-x64' } ^| Sort-Object LastWriteTime -Descending ^| Select-Object -First 1;" ^
+  "$extracted = Get-ChildItem -Path $env:TOOLS_DIR -Directory | Where-Object { $_.Name -like 'node-v*-win-x64' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1;" ^
   "if (-not $extracted) { throw 'Node archive extraction failed.' };" ^
   "if (Test-Path $env:NODE_DIR) { Remove-Item -Recurse -Force $env:NODE_DIR };" ^
   "Move-Item -Path $extracted.FullName -Destination $env:NODE_DIR -Force" 1>>"%LOG_FILE%" 2>>&1
