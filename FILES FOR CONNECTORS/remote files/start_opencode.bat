@@ -48,6 +48,11 @@ if defined BASE_URL (
       echo Cancelled.
       exit /b 1
     )
+    echo %NEW_MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+    if errorlevel 1 (
+      echo [WARN] Invalid IPv4 format. Example: 192.168.1.50
+      goto :check_server
+    )
 
     set "BASE_URL=http://%NEW_MAIN_PC_IP%:8076/v1"
     call :write_base_url
@@ -66,7 +71,7 @@ exit /b %ERRORLEVEL%
 
 :read_base_url
 set "BASE_URL="
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw '%CONFIG_SOURCE%'; if ($json -match '\"baseURL\"\s*:\s*\"([^\"]+)\"') { Write-Output $matches[1] }"`) do set "BASE_URL=%%I"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; if ($json -match '\"baseURL\"\s*:\s*\"([^\"]+)\"') { Write-Output $matches[1] }"`) do set "BASE_URL=%%I"
 if not defined BASE_URL (
   echo [ERROR] Could not read baseURL from:
   echo   "%CONFIG_SOURCE%"
@@ -77,9 +82,9 @@ exit /b 0
 :write_base_url
 echo Updating config baseURL to: %BASE_URL%
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$json = Get-Content -Raw '%CONFIG_SOURCE%';" ^
-  "$updated = [regex]::Replace($json, '\"baseURL\"\s*:\s*\"[^\"]+\"', ('\"baseURL\": \"' + '%BASE_URL%' + '\"'));" ^
-  "$updated | Set-Content -Encoding UTF8 '%CONFIG_SOURCE%'"
+  "$json = Get-Content -Raw $env:CONFIG_SOURCE;" ^
+  "$updated = [regex]::Replace($json, '\"baseURL\"\s*:\s*\"[^\"]+\"', ('\"baseURL\": \"' + $env:BASE_URL + '\"'));" ^
+  "$updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE"
 if errorlevel 1 (
   echo [ERROR] Failed to update baseURL in config source.
   exit /b 1
