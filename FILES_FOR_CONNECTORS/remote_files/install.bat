@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 cd /d "%~dp0"
 
 set "LOG_FILE=%~dp0install.log"
@@ -141,8 +141,26 @@ if exist "%LOCAL_OPENCODE%" (
 echo opencode not found. Installing local portable dependencies...
 call :log opencode not found. Installing local portable dependencies...
 if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create tools directory "%TOOLS_DIR%"
+  echo [ERROR] Failed to create tools directory:
+  echo   "%TOOLS_DIR%"
+  exit /b 2
+)
 if not exist "%NPM_PREFIX%" mkdir "%NPM_PREFIX%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create npm prefix "%NPM_PREFIX%"
+  echo [ERROR] Failed to create npm prefix directory:
+  echo   "%NPM_PREFIX%"
+  exit /b 2
+)
 if not exist "%NPM_CACHE%" mkdir "%NPM_CACHE%"
+if errorlevel 1 (
+  call :log ERROR: Failed to create npm cache "%NPM_CACHE%"
+  echo [ERROR] Failed to create npm cache directory:
+  echo   "%NPM_CACHE%"
+  exit /b 2
+)
 
 if not exist "%NODE_EXE%" (
   echo [INFO] Downloading portable Node.js (no admin required)...

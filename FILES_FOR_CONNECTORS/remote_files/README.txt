@@ -1,7 +1,7 @@
 WORK LAPTOP QUICK START
 =======================
 
-1) Copy this entire "remote files" folder to your work laptop.
+1) Copy this entire "remote_files" folder to your work laptop.
 2) Run install.bat once.
 3) Run start_opencode.bat whenever you want to work.
 
@@ -18,8 +18,8 @@ What install.bat does
   - %USERPROFILE%\.config\opencode\opencode.jsonc
   - %APPDATA%\opencode\opencode.jsonc
 - if opencode is missing, installs local portable dependencies with no admin:
-  - downloads portable Node.js into remote files\tools\node
-  - installs opencode-ai into remote files\tools\npm-global
+  - downloads portable Node.js into remote_files\tools\node
+  - installs opencode-ai into remote_files\tools\npm-global
 - checks API endpoint reachability
 
 What start_opencode.bat does
