@@ -93,7 +93,15 @@ exit /b %EXIT_CODE%
 
 :read_base_url
 set "BASE_URL="
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; if ($json -match '\"baseURL\"\s*:\s*\"([^\"]+)\"') { Write-Output $matches[1] }"`) do set "BASE_URL=%%I"
+set "BASE_URL_FILE=%TEMP%\opencode_baseurl_%RANDOM%%RANDOM%.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$json = Get-Content -Raw $env:CONFIG_SOURCE;" ^
+  "$m = [regex]::Match($json, '\"baseURL\"\s*:\s*\"([^\"]+)\"');" ^
+  "if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
+if exist "%BASE_URL_FILE%" (
+  set /p "BASE_URL="<"%BASE_URL_FILE%"
+  del /q "%BASE_URL_FILE%" >nul 2>nul
+)
 if not defined BASE_URL (
   call :log ERROR: Could not parse baseURL from "%CONFIG_SOURCE%"
   echo [ERROR] Could not read baseURL from:
