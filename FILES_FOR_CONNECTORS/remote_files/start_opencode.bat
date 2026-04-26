@@ -60,14 +60,14 @@ if defined BASE_URL (
       echo Cancelled.
       goto :fatal
     )
-    echo %NEW_MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+    echo !NEW_MAIN_PC_IP!| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
     if errorlevel 1 (
-      call :log WARNING: Invalid IPv4 entered: %NEW_MAIN_PC_IP%
+      call :log WARNING: Invalid IPv4 entered: !NEW_MAIN_PC_IP!
       echo [WARN] Invalid IPv4 format. Example: 192.168.1.50
       goto :check_server
     )
 
-    set "BASE_URL=http://%NEW_MAIN_PC_IP%:8076/v1"
+    set "BASE_URL=http://!NEW_MAIN_PC_IP!:8076/v1"
     call :write_base_url
     if errorlevel 1 goto :fatal
     goto :check_server
