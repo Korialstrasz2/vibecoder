@@ -17,5 +17,13 @@ What install.bat does
 - installs that config to:
   - %USERPROFILE%\.config\opencode\opencode.jsonc
   - %APPDATA%\opencode\opencode.jsonc
-- installs opencode-ai globally via npm if missing
+- if opencode is missing, installs local portable dependencies with no admin:
+  - downloads portable Node.js into remote files\tools\node
+  - installs opencode-ai into remote files\tools\npm-global
 - checks API endpoint reachability
+
+What start_opencode.bat does
+----------------------------
+- if server is unreachable, prompts for MAIN PC IP again and retries
+- updates config baseURL automatically with your new IP
+- uses local portable opencode if global one is unavailable
