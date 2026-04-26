@@ -94,7 +94,7 @@ exit /b %EXIT_CODE%
 :read_base_url
 set "BASE_URL="
 set "BASE_URL_FILE=%TEMP%\opencode_baseurl_%RANDOM%%RANDOM%.txt"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '\"baseURL\"\s*:\s*\"([^\"]+)\"'); if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $m = [regex]::Match($json, '\x22baseURL\x22\s*:\s*\x22([^\x22]+)\x22'); if ($m.Success) { $m.Groups[1].Value }" > "%BASE_URL_FILE%"
 if exist "%BASE_URL_FILE%" (
   set /p "BASE_URL="<"%BASE_URL_FILE%"
   del /q "%BASE_URL_FILE%" >nul 2>nul
@@ -111,7 +111,7 @@ exit /b 0
 :write_base_url
 call :log Updating config baseURL to %BASE_URL%
 echo Updating config baseURL to: %BASE_URL%
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $updated = [regex]::Replace($json, '\"baseURL\"\s*:\s*\"[^\"]+\"', ('\"baseURL\": \"' + $env:BASE_URL + '\"')); $updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE" 1>>"%LOG_FILE%" 2>>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$json = Get-Content -Raw $env:CONFIG_SOURCE; $updated = [regex]::Replace($json, '\x22baseURL\x22\s*:\s*\x22[^\x22]+\x22', ('\x22baseURL\x22: \x22' + $env:BASE_URL + '\x22')); $updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE" 1>>"%LOG_FILE%" 2>>&1
 if errorlevel 1 (
   call :log ERROR: Failed to update baseURL in config source.
   echo [ERROR] Failed to update baseURL in config source.
