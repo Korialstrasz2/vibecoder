@@ -11,6 +11,14 @@ call :log Timestamp: %DATE% %TIME%
 rem --- Load optional overrides first ---
 if exist "local_settings.bat" (
     call :log Found local_settings.bat, loading it
+    cmd /d /q /c "call \"local_settings.bat\" >nul 2>&1"
+    if errorlevel 1 (
+        call :log ERROR: local_settings.bat failed a syntax preflight check
+        echo [ERROR] local_settings.bat contains invalid batch syntax.
+        echo         Please fix the file, then run start_server again.
+        echo         Tip: each setting should look like: set "NAME=value"
+        goto :fail
+    )
     call "local_settings.bat"
 ) else (
     call :log No local_settings.bat found, using defaults
