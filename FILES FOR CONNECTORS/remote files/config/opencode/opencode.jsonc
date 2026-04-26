@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama.cpp/qwen-local",
+  "default_agent": "work",
+  "agent": {
+    "work": {
+      "mode": "primary",
+      "description": "Work laptop profile using remote LAN model server",
+      "permission": {
+        "*": "allow",
+        "external_directory": "ask",
+        "doom_loop": "ask"
+      }
+    }
+  },
+  "provider": {
+    "llama.cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Main PC llama-server",
+      "options": {
+        "baseURL": "__BASE_URL__"
+      },
+      "models": {
+        "qwen-local": {
+          "name": "Qwen local over LAN",
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}
