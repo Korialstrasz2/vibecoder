@@ -8,6 +8,9 @@ set "CONFIG_DIR=%USERPROFILE%\.config\opencode"
 set "CONFIG_DEST=%CONFIG_DIR%\opencode.jsonc"
 set "LEGACY_CONFIG_DIR=%APPDATA%\opencode"
 set "LEGACY_CONFIG_DEST=%LEGACY_CONFIG_DIR%\opencode.jsonc"
+set "TOOLS_DIR=%~dp0tools"
+set "NODE_DIR=%TOOLS_DIR%\node"
+set "NODE_EXE=%NODE_DIR%\node.exe"
 set "LOCAL_OPENCODE=%~dp0tools\npm-global\opencode.cmd"
 
 call :log ======================================================================
@@ -34,6 +37,16 @@ if errorlevel 1 (
   if exist "%LOCAL_OPENCODE%" (
     set "OPENCODE_CMD=%LOCAL_OPENCODE%"
     call :log Using local opencode command "%OPENCODE_CMD%"
+    if exist "%NODE_EXE%" (
+      set "PATH=%NODE_DIR%;%~dp0tools\npm-global;%PATH%"
+      call :log Added portable Node.js to PATH from "%NODE_DIR%"
+    ) else (
+      call :log WARNING: Local opencode exists but portable Node.js is missing at "%NODE_EXE%"
+      echo [WARN] Portable Node.js is missing:
+      echo   "%NODE_EXE%"
+      echo Run install.bat again to repair local dependencies.
+      goto :fatal
+    )
   ) else (
     call :log ERROR: opencode command not found on PATH or local tools folder
     echo [ERROR] opencode not found.
