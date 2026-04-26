@@ -6,7 +6,19 @@ set "LLAMA_HOST=0.0.0.0"
 if not defined LLAMA_PORT set "LLAMA_PORT=8076"
 
 set "LAN_IP="
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$ip = Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254*' -and $_.PrefixOrigin -ne 'WellKnown' } ^| Select-Object -First 1 -ExpandProperty IPAddress; if (-not $ip) { $ip = (Get-CimInstance Win32_NetworkAdapterConfiguration ^| Where-Object { $_.IPEnabled } ^| ForEach-Object { $_.IPAddress } ^| Where-Object { $_ -match '^\\d+\\.\\d+\\.\\d+\\.\\d+$' -and $_ -ne '127.0.0.1' -and $_ -notlike '169.254*' } ^| Select-Object -First 1) }; if ($ip) { Write-Output $ip }"`) do set "LAN_IP=%%I"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ip = $null;" ^
+  "try {" ^
+  "  $route = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop ^| Sort-Object RouteMetric, ifMetric ^| Select-Object -First 1;" ^
+  "  if ($route) { $ip = Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $route.IfIndex -ErrorAction SilentlyContinue ^| Where-Object { $_.IPAddress -match '^\d+\.\d+\.\d+\.\d+$' -and $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254*' } ^| Select-Object -First 1 -ExpandProperty IPAddress }" ^
+  "} catch { }" ^
+  "if (-not $ip) {" ^
+  "  try { $ip = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop ^| Where-Object { $_.IPAddress -match '^\d+\.\d+\.\d+\.\d+$' -and $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254*' } ^| Select-Object -First 1 -ExpandProperty IPAddress } catch { }" ^
+  "}" ^
+  "if (-not $ip) {" ^
+  "  try { $ip = (ipconfig ^| Select-String -Pattern 'IPv4[^:]*:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)' -AllMatches).Matches ^| ForEach-Object { $_.Groups[1].Value } ^| Where-Object { $_ -ne '127.0.0.1' -and $_ -notlike '169.254*' } ^| Select-Object -First 1 } catch { }" ^
+  "}" ^
+  "if ($ip) { Write-Output $ip }"`) do set "LAN_IP=%%I"
 
 echo.
 echo === LAN Server Mode ===
@@ -19,6 +31,7 @@ if defined LAN_IP (
 ) else (
   echo LAN IP:       [not detected automatically]
   echo Run ^"ipconfig^" and use your active IPv4 manually.
+  echo Tip: choose the IPv4 of your currently connected adapter (Wi-Fi or Ethernet).
 )
 echo.
 echo NOTE: This exposes your model server on your local network.

@@ -14,6 +14,7 @@ set "NODE_DIR=%TOOLS_DIR%\node"
 set "NODE_EXE=%NODE_DIR%\node.exe"
 set "NODE_NPM_CMD=%NODE_DIR%\npm.cmd"
 set "NPM_PREFIX=%TOOLS_DIR%\npm-global"
+set "NPM_CACHE=%TOOLS_DIR%\npm-cache"
 set "LOCAL_OPENCODE=%NPM_PREFIX%\opencode.cmd"
 set "NODE_DOWNLOAD_URL=https://nodejs.org/dist/v20.19.5/node-v20.19.5-win-x64.zip"
 set "NODE_ZIP=%TEMP%\node-v20.19.5-win-x64.zip"
@@ -21,7 +22,7 @@ set "NODE_ZIP=%TEMP%\node-v20.19.5-win-x64.zip"
 if not exist "%TEMPLATE_CONFIG%" (
   echo [ERROR] Missing template config:
   echo   "%TEMPLATE_CONFIG%"
-  exit /b 1
+  goto :fatal
 )
 
 set "DEFAULT_MAIN_PC_IP=192.168.1.50"
@@ -38,17 +39,25 @@ echo   10.0.0.50
 echo.
 set /p "MAIN_PC_IP=Enter MAIN PC LAN IPv4 [default %DEFAULT_MAIN_PC_IP%]: "
 if not defined MAIN_PC_IP set "MAIN_PC_IP=%DEFAULT_MAIN_PC_IP%"
+echo %MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
+if errorlevel 1 (
+  echo [ERROR] Invalid IPv4 format: %MAIN_PC_IP%
+  echo         Example: 192.168.1.50
+  goto :fatal
+)
 
 set "BASE_URL=http://%MAIN_PC_IP%:8076/v1"
 
 echo Building config with BASE_URL=%BASE_URL%
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$template = Get-Content -Raw '%TEMPLATE_CONFIG%';" ^
-  "$output = $template.Replace('__BASE_URL__', '%BASE_URL%');" ^
-  "$output | Set-Content -Encoding UTF8 '%WORK_CONFIG%'"
+  "$template = Get-Content -Raw $env:TEMPLATE_CONFIG;" ^
+  "$output = $template.Replace('__BASE_URL__', $env:BASE_URL);" ^
+  "$output | Set-Content -Encoding UTF8 $env:WORK_CONFIG"
 if errorlevel 1 (
   echo [ERROR] Failed to generate config.
-  exit /b 1
+  echo         TEMPLATE_CONFIG=%TEMPLATE_CONFIG%
+  echo         WORK_CONFIG=%WORK_CONFIG%
+  goto :fatal
 )
 
 if not exist "%USER_CONFIG_DIR%" mkdir "%USER_CONFIG_DIR%"
@@ -56,14 +65,14 @@ copy /Y "%WORK_CONFIG%" "%USER_CONFIG%" >nul
 if errorlevel 1 (
   echo [ERROR] Failed to install config:
   echo   "%USER_CONFIG%"
-  exit /b 1
+  goto :fatal
 )
 
 if not exist "%LEGACY_CONFIG_DIR%" mkdir "%LEGACY_CONFIG_DIR%"
 copy /Y "%WORK_CONFIG%" "%LEGACY_CONFIG%" >nul 2>nul
 
 call :ensure_opencode
-if errorlevel 1 exit /b 1
+if errorlevel 1 goto :fatal
 
 echo Testing server reachability at:
 echo   %BASE_URL%/models
@@ -96,6 +105,7 @@ if exist "%LOCAL_OPENCODE%" (
 echo opencode not found. Installing local portable dependencies...
 if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 if not exist "%NPM_PREFIX%" mkdir "%NPM_PREFIX%"
+if not exist "%NPM_CACHE%" mkdir "%NPM_CACHE%"
 
 if not exist "%NODE_EXE%" (
   echo [INFO] Downloading portable Node.js (no admin required)...
@@ -110,31 +120,45 @@ if not exist "%NODE_EXE%" (
   if errorlevel 1 (
     echo [ERROR] Could not download/extract portable Node.js.
     echo         Check internet access and rerun install.bat.
-    exit /b 1
+    exit /b 2
   )
 )
 
 if not exist "%NODE_NPM_CMD%" (
   echo [ERROR] npm.cmd not found in portable Node folder:
   echo   "%NODE_NPM_CMD%"
-  exit /b 1
+  exit /b 2
 )
 
 set "PATH=%NODE_DIR%;%NPM_PREFIX%;%PATH%"
 set "npm_config_prefix=%NPM_PREFIX%"
+set "npm_config_cache=%NPM_CACHE%"
 
-call "%NODE_NPM_CMD%" install -g opencode-ai
+echo [INFO] Installing opencode-ai into:
+echo        %NPM_PREFIX%
+call "%NODE_NPM_CMD%" install -g opencode-ai --prefix "%NPM_PREFIX%" --cache "%NPM_CACHE%"
 if errorlevel 1 (
   echo [ERROR] Failed to install opencode-ai locally.
-  exit /b 1
+  echo         npm prefix: %NPM_PREFIX%
+  echo         npm cache : %NPM_CACHE%
+  echo         If on corporate network, try VPN/proxy or run:
+  echo         "%NODE_NPM_CMD%" config set proxy http://YOUR_PROXY:PORT
+  echo         "%NODE_NPM_CMD%" config set https-proxy http://YOUR_PROXY:PORT
+  exit /b 2
 )
 
 if not exist "%LOCAL_OPENCODE%" (
   echo [ERROR] Local opencode command not found after install:
   echo   "%LOCAL_OPENCODE%"
-  exit /b 1
+  exit /b 2
 )
 
 echo [OK] Local opencode installed at:
 echo      "%LOCAL_OPENCODE%"
 exit /b 0
+
+:fatal
+echo.
+echo Script failed. Press any key to close this window.
+pause >nul
+exit /b 1
