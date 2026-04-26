@@ -13,7 +13,7 @@ if not exist "%CONFIG_SOURCE%" (
   echo [ERROR] Missing config file:
   echo   "%CONFIG_SOURCE%"
   echo Run install.bat first.
-  exit /b 1
+  goto :fatal
 )
 
 if not exist "%CONFIG_DIR%" mkdir "%CONFIG_DIR%"
@@ -29,12 +29,12 @@ if errorlevel 1 (
   ) else (
     echo [ERROR] opencode not found.
     echo Run install.bat first to install local dependencies without admin rights.
-    exit /b 1
+    goto :fatal
   )
 )
 
 call :read_base_url
-if errorlevel 1 exit /b 1
+if errorlevel 1 goto :fatal
 
 :check_server
 if defined BASE_URL (
@@ -46,7 +46,7 @@ if defined BASE_URL (
     set /p "NEW_MAIN_PC_IP=Enter MAIN PC IPv4 to retry (blank to cancel): "
     if not defined NEW_MAIN_PC_IP (
       echo Cancelled.
-      exit /b 1
+      goto :fatal
     )
     echo %NEW_MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
     if errorlevel 1 (
@@ -56,7 +56,7 @@ if defined BASE_URL (
 
     set "BASE_URL=http://%NEW_MAIN_PC_IP%:8076/v1"
     call :write_base_url
-    if errorlevel 1 exit /b 1
+    if errorlevel 1 goto :fatal
     goto :check_server
   )
 )
@@ -75,7 +75,7 @@ for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass
 if not defined BASE_URL (
   echo [ERROR] Could not read baseURL from:
   echo   "%CONFIG_SOURCE%"
-  exit /b 1
+  exit /b 2
 )
 exit /b 0
 
@@ -87,9 +87,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$updated | Set-Content -Encoding UTF8 $env:CONFIG_SOURCE"
 if errorlevel 1 (
   echo [ERROR] Failed to update baseURL in config source.
-  exit /b 1
+  exit /b 2
 )
 
 copy /Y "%CONFIG_SOURCE%" "%CONFIG_DEST%" >nul
 copy /Y "%CONFIG_SOURCE%" "%LEGACY_CONFIG_DEST%" >nul 2>nul
 exit /b 0
+
+:fatal
+echo.
+echo Script failed. Press any key to close this window.
+pause >nul
+exit /b 1
