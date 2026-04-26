@@ -2,6 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
+set "LOG_FILE=%~dp0install.log"
 set "SCRIPT_DIR=%~dp0"
 set "TEMPLATE_CONFIG=%SCRIPT_DIR%config\opencode\opencode.template.jsonc"
 set "WORK_CONFIG=%SCRIPT_DIR%config\opencode\opencode.jsonc"
@@ -19,15 +20,22 @@ set "LOCAL_OPENCODE=%NPM_PREFIX%\opencode.cmd"
 set "NODE_DOWNLOAD_URL=https://nodejs.org/dist/v20.19.5/node-v20.19.5-win-x64.zip"
 set "NODE_ZIP=%TEMP%\node-v20.19.5-win-x64.zip"
 
+call :log ======================================================================
+call :log Starting OpenCode Work Laptop installer in "%CD%"
+call :log Timestamp: %DATE% %TIME%
+call :log Log file: "%LOG_FILE%"
+
 if not exist "%TEMPLATE_CONFIG%" (
+  call :log ERROR: Missing template config "%TEMPLATE_CONFIG%"
   echo [ERROR] Missing template config:
   echo   "%TEMPLATE_CONFIG%"
   goto :fatal
 )
 
 set "DEFAULT_MAIN_PC_IP=192.168.1.50"
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$ip = Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.IPAddress -match '^\d+\.\d+\.\d+\.\d+$' -and $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254*' } ^| Select-Object -First 1 -ExpandProperty IPAddress; if ($ip) { $parts = $ip.Split('.'); if ($parts.Length -eq 4) { Write-Output ($parts[0] + '.' + $parts[1] + '.' + $parts[2] + '.50') } }"`) do set "DEFAULT_MAIN_PC_IP=%%I"
+for /f "usebackq delims=" %%I in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "$ip = $null; try { $route = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop ^| Sort-Object RouteMetric, ifMetric ^| Select-Object -First 1; if ($route) { $ip = Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $route.IfIndex -ErrorAction SilentlyContinue ^| Where-Object { $_.IPAddress -match '^\d+\.\d+\.\d+\.\d+$' -and $_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254*' } ^| Select-Object -First 1 -ExpandProperty IPAddress } } catch { }; if (-not $ip) { try { $ip = (ipconfig ^| Select-String -Pattern 'IPv4[^:]*:\s*([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)' -AllMatches).Matches ^| ForEach-Object { $_.Groups[1].Value } ^| Where-Object { $_ -ne '127.0.0.1' -and $_ -notlike '169.254*' } ^| Select-Object -First 1 } catch { } }; if ($ip) { $parts = $ip.Split('.'); if ($parts.Length -eq 4) { Write-Output ($parts[0] + '.' + $parts[1] + '.' + $parts[2] + '.50') } }"`) do set "DEFAULT_MAIN_PC_IP=%%I"
 
+call :log Suggested default MAIN_PC_IP=%DEFAULT_MAIN_PC_IP%
 echo.
 echo === OpenCode Work Laptop Installer ===
 echo.
@@ -39,30 +47,37 @@ echo   10.0.0.50
 echo.
 set /p "MAIN_PC_IP=Enter MAIN PC LAN IPv4 [default %DEFAULT_MAIN_PC_IP%]: "
 if not defined MAIN_PC_IP set "MAIN_PC_IP=%DEFAULT_MAIN_PC_IP%"
+call :log User entered MAIN_PC_IP=%MAIN_PC_IP%
+
 echo %MAIN_PC_IP%| findstr /R /C:"^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" >nul
 if errorlevel 1 (
+  call :log ERROR: Invalid IPv4 format: %MAIN_PC_IP%
   echo [ERROR] Invalid IPv4 format: %MAIN_PC_IP%
   echo         Example: 192.168.1.50
   goto :fatal
 )
 
 set "BASE_URL=http://%MAIN_PC_IP%:8076/v1"
+call :log BASE_URL=%BASE_URL%
 
 echo Building config with BASE_URL=%BASE_URL%
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$template = Get-Content -Raw $env:TEMPLATE_CONFIG;" ^
   "$output = $template.Replace('__BASE_URL__', $env:BASE_URL);" ^
-  "$output | Set-Content -Encoding UTF8 $env:WORK_CONFIG"
+  "$output | Set-Content -Encoding UTF8 $env:WORK_CONFIG" 1>>"%LOG_FILE%" 2>>&1
 if errorlevel 1 (
+  call :log ERROR: Failed to generate config.
   echo [ERROR] Failed to generate config.
-  echo         TEMPLATE_CONFIG=%TEMPLATE_CONFIG%
-  echo         WORK_CONFIG=%WORK_CONFIG%
+  echo         See details in:
+  echo         "%LOG_FILE%"
   goto :fatal
 )
+call :log Generated config "%WORK_CONFIG%"
 
 if not exist "%USER_CONFIG_DIR%" mkdir "%USER_CONFIG_DIR%"
 copy /Y "%WORK_CONFIG%" "%USER_CONFIG%" >nul
 if errorlevel 1 (
+  call :log ERROR: Failed to install config to "%USER_CONFIG%"
   echo [ERROR] Failed to install config:
   echo   "%USER_CONFIG%"
   goto :fatal
@@ -70,6 +85,7 @@ if errorlevel 1 (
 
 if not exist "%LEGACY_CONFIG_DIR%" mkdir "%LEGACY_CONFIG_DIR%"
 copy /Y "%WORK_CONFIG%" "%LEGACY_CONFIG%" >nul 2>nul
+call :log Installed config to "%USER_CONFIG%"
 
 call :ensure_opencode
 if errorlevel 1 goto :fatal
@@ -78,37 +94,44 @@ echo Testing server reachability at:
 echo   %BASE_URL%/models
 curl -s --max-time 5 "%BASE_URL%/models" >nul 2>nul
 if errorlevel 1 (
+  call :log WARNING: Could not reach server at %BASE_URL%/models
   echo [WARN] Could not reach server right now. Start the MAIN PC server first.
   echo        start_opencode.bat will let you re-enter IP and retry.
 ) else (
+  call :log Connectivity test passed: %BASE_URL%/models
   echo [OK] Server reachable.
 )
 
 echo.
 echo Install complete.
 echo Next step: run start_opencode.bat
+call :log Install completed successfully.
 exit /b 0
 
 :ensure_opencode
 where opencode >nul 2>nul
 if not errorlevel 1 (
+  call :log Found opencode on PATH.
   echo [OK] Found opencode on PATH.
   exit /b 0
 )
 
 if exist "%LOCAL_OPENCODE%" (
+  call :log Found local opencode at "%LOCAL_OPENCODE%"
   echo [OK] Found local opencode at:
   echo      "%LOCAL_OPENCODE%"
   exit /b 0
 )
 
 echo opencode not found. Installing local portable dependencies...
+call :log opencode not found. Installing local portable dependencies...
 if not exist "%TOOLS_DIR%" mkdir "%TOOLS_DIR%"
 if not exist "%NPM_PREFIX%" mkdir "%NPM_PREFIX%"
 if not exist "%NPM_CACHE%" mkdir "%NPM_CACHE%"
 
 if not exist "%NODE_EXE%" (
   echo [INFO] Downloading portable Node.js (no admin required)...
+  call :log Downloading portable Node.js from %NODE_DOWNLOAD_URL%
   powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$ErrorActionPreference='Stop';" ^
     "Invoke-WebRequest -Uri '%NODE_DOWNLOAD_URL%' -OutFile '%NODE_ZIP%';" ^
@@ -116,15 +139,19 @@ if not exist "%NODE_EXE%" (
     "Expand-Archive -Path '%NODE_ZIP%' -DestinationPath '%TOOLS_DIR%' -Force;" ^
     "$extracted = Get-ChildItem -Path '%TOOLS_DIR%' -Directory ^| Where-Object { $_.Name -like 'node-v*-win-x64' } ^| Sort-Object LastWriteTime -Descending ^| Select-Object -First 1;" ^
     "if (-not $extracted) { throw 'Node archive extraction failed.' };" ^
-    "Rename-Item -Path $extracted.FullName -NewName 'node' -Force"
+    "Rename-Item -Path $extracted.FullName -NewName 'node' -Force" 1>>"%LOG_FILE%" 2>>&1
   if errorlevel 1 (
+    call :log ERROR: Could not download/extract portable Node.js.
     echo [ERROR] Could not download/extract portable Node.js.
-    echo         Check internet access and rerun install.bat.
+    echo         Check internet/proxy access and rerun install.bat.
+    echo         See detailed output in:
+    echo         "%LOG_FILE%"
     exit /b 2
   )
 )
 
 if not exist "%NODE_NPM_CMD%" (
+  call :log ERROR: npm.cmd not found in "%NODE_NPM_CMD%"
   echo [ERROR] npm.cmd not found in portable Node folder:
   echo   "%NODE_NPM_CMD%"
   exit /b 2
@@ -136,29 +163,42 @@ set "npm_config_cache=%NPM_CACHE%"
 
 echo [INFO] Installing opencode-ai into:
 echo        %NPM_PREFIX%
-call "%NODE_NPM_CMD%" install -g opencode-ai --prefix "%NPM_PREFIX%" --cache "%NPM_CACHE%"
+call :log Running npm install for opencode-ai
+call "%NODE_NPM_CMD%" install -g opencode-ai --prefix "%NPM_PREFIX%" --cache "%NPM_CACHE%" 1>>"%LOG_FILE%" 2>>&1
 if errorlevel 1 (
+  call :log ERROR: npm install failed for opencode-ai
   echo [ERROR] Failed to install opencode-ai locally.
   echo         npm prefix: %NPM_PREFIX%
   echo         npm cache : %NPM_CACHE%
-  echo         If on corporate network, try VPN/proxy or run:
-  echo         "%NODE_NPM_CMD%" config set proxy http://YOUR_PROXY:PORT
-  echo         "%NODE_NPM_CMD%" config set https-proxy http://YOUR_PROXY:PORT
+  echo         Full command output was logged line-by-line to:
+  echo         "%LOG_FILE%"
+  echo         If on corporate network, configure proxy then retry.
   exit /b 2
 )
 
 if not exist "%LOCAL_OPENCODE%" (
+  call :log ERROR: Local opencode command missing at "%LOCAL_OPENCODE%" after npm install
   echo [ERROR] Local opencode command not found after install:
   echo   "%LOCAL_OPENCODE%"
+  echo Check "%LOG_FILE%" for npm output.
   exit /b 2
 )
 
+call :log Local opencode installed at "%LOCAL_OPENCODE%"
 echo [OK] Local opencode installed at:
 echo      "%LOCAL_OPENCODE%"
 exit /b 0
 
 :fatal
 echo.
-echo Script failed. Press any key to close this window.
-pause >nul
+echo Script failed. Console will stay open.
+echo See log:
+echo   "%LOG_FILE%"
+call :log Script failed with errorlevel %ERRORLEVEL%
+pause
 exit /b 1
+
+:log
+echo [%DATE% %TIME%] %*>>"%LOG_FILE%"
+echo [%DATE% %TIME%] %*
+exit /b 0
