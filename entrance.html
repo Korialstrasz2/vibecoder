@@ -6,12 +6,16 @@
   <title>VibeCoder Launcher</title>
   <style>
     body { font-family: Arial, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; }
-    .wrap { max-width: 760px; margin: 48px auto; padding: 24px; }
+    .wrap { max-width: 900px; margin: 48px auto; padding: 24px; }
     h1 { margin-top:0; font-size: 1.8rem; }
     .card { background:#1e293b; border:1px solid #334155; border-radius:10px; padding:18px; margin:14px 0; }
     button { background:#3b82f6; color:white; border:none; border-radius:8px; padding:10px 14px; cursor:pointer; }
     button:hover { background:#2563eb; }
     button:disabled { background:#475569; cursor:not-allowed; opacity:.8; }
+    select { width:100%; background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; margin-top:6px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin:10px 0 16px 0; }
+    label { font-size:.9rem; color:#cbd5e1; }
+    .meta { margin-top: 10px; padding: 10px; border:1px solid #334155; border-radius:8px; background:#0b1220; font-size:.9rem; color:#cbd5e1; }
     #status { margin-top:16px; padding:10px; background:#0b1220; border:1px solid #334155; border-radius:8px; min-height:20px; }
     code { color:#93c5fd; }
   </style>
@@ -35,11 +39,30 @@
 
     <div class="card">
       <h3>Main Server + OpenCode</h3>
-      <p>Runs <code>MAIN_DATA/start_server.bat</code> and <code>MAIN_DATA/start_opencode.bat</code>.</p>
-      <button data-target="main_plus_opencode">Start Main + OpenCode</button>
+      <p>Pick exact GPU target, context, and model profile then launch.</p>
+
+      <div class="grid">
+        <div>
+          <label for="gpuSelection">GPU target</label>
+          <select id="gpuSelection"></select>
+        </div>
+        <div>
+          <label for="contextSize">Context</label>
+          <select id="contextSize"></select>
+        </div>
+      </div>
+
+      <label for="modelSelect">Model (GGUF size + params + architecture)</label>
+      <select id="modelSelect"></select>
+
+      <div class="meta" id="fitEstimate">Calculating VRAM fit estimate...</div>
+
+      <div style="margin-top:14px;">
+        <button data-target="main_plus_opencode" id="startMainBtn">Start Main + OpenCode</button>
+      </div>
     </div>
 
-    <div id="status">Ready.</div>
+    <div id="status">Loading launch profiles...</div>
   </div>
   <script src="entrance.js"></script>
 </body>
