@@ -38,6 +38,12 @@ class LauncherHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
         self.end_headers()
 
+    def do_GET(self):
+        if self.path == "/health":
+            self._write_json(200, {"status": "ok"})
+            return
+        self._write_json(404, {"message": "Not found"})
+
     def do_POST(self):
         if self.path != "/start":
             self._write_json(404, {"message": "Not found"})

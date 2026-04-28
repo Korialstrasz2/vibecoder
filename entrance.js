@@ -12,7 +12,7 @@ async function launch(target) {
     const data = await res.json();
     statusEl.textContent = data.message || 'Done.';
   } catch (err) {
-    statusEl.textContent = `Could not reach launcher.py (${err.message}). Start it first: python launcher.py`;
+    statusEl.textContent = `Could not reach launcher API. Double-click entrance.bat and wait 2-3 seconds, then retry. Error: ${err.message}`;
   }
 }
 
