@@ -32,7 +32,7 @@ goto wait_for_api
 
 :api_ready
 echo Launcher API is running.
-start "" "%~dp0entrance.html"
+start "" "http://127.0.0.1:8765/"
 exit /b 0
 
 :api_failed

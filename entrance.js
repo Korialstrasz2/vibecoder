@@ -3,7 +3,7 @@ const statusEl = document.getElementById('status');
 async function launch(target) {
   statusEl.textContent = `Starting ${target}...`;
   try {
-    const res = await fetch('http://127.0.0.1:8765/start', {
+    const res = await fetch('/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target })
