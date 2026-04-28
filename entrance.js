@@ -10,6 +10,18 @@ const gpuLayersSliderEl = document.getElementById('gpuLayersSlider');
 const gpuLayersValueEl = document.getElementById('gpuLayersValue');
 const gpuLayersHintEl = document.getElementById('gpuLayersHint');
 const force999El = document.getElementById('force999');
+
+// ── Monitor panel elements ──
+const monitorSection = document.getElementById('monitor-section');
+const monitorBadge = document.getElementById('monitorBadge');
+const serverDot = document.getElementById('serverDot');
+const serverStatusText = document.getElementById('serverStatusText');
+const monitorLog = document.getElementById('monitor-log');
+
+let monitorPollId = null;
+let monitorLogIndex = 0;
+let monitorPhase = 'idle'; // idle | launching | ready | error
+
 const selectedValues = {
   gpu_selection: 'all',
   context: '65536',
@@ -19,6 +31,124 @@ const selectedValues = {
   recommended_gpu_layers: 0,
   force_999: false,
 };
+
+// ── Monitor helpers ──
+
+function formatTime(ts) {
+  const d = new Date(ts * 1000);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
+function addMonitorLog(message, level) {
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${level}`;
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+  entry.innerHTML = `<span class="time">${timeStr}</span>${message}`;
+  monitorLog.appendChild(entry);
+  monitorLog.scrollTop = monitorLog.scrollHeight;
+}
+
+function setMonitorPhase(phase) {
+  monitorPhase = phase;
+  monitorBadge.className = 'monitor-badge ' + phase;
+  switch (phase) {
+    case 'launching': monitorBadge.textContent = 'Launching...'; break;
+    case 'ready': monitorBadge.textContent = 'Server Ready'; break;
+    case 'offline': monitorBadge.textContent = 'Idle'; break;
+    case 'done': monitorBadge.textContent = 'Done'; break;
+    case 'error': monitorBadge.textContent = 'Error'; break;
+    default: monitorBadge.textContent = 'Idle';
+  }
+}
+
+function showMonitor() {
+  monitorSection.classList.add('visible');
+  monitorLog.innerHTML = '';
+  monitorLogIndex = 0;
+  addMonitorLog('Initializing launch monitor...', 'info');
+  setMonitorPhase('launching');
+}
+
+function hideMonitor() {
+  clearInterval(monitorPollId);
+  monitorPollId = null;
+  setMonitorPhase('offline');
+  monitorSection.classList.remove('visible');
+}
+
+async function checkServerStatus() {
+  try {
+    const res = await fetch('/server-status');
+    const data = await res.json();
+    const online = data.online === true;
+    serverDot.className = online ? 'online' : 'offline';
+    serverStatusText.textContent = online ? 'Online - responding to /v1/models' : 'Offline - not reachable yet';
+    return online;
+  } catch (err) {
+    serverDot.className = 'offline';
+    serverStatusText.textContent = 'Cannot check status';
+    return false;
+  }
+}
+
+async function pollLaunchLogs() {
+  try {
+    const res = await fetch(`/launch-log?since=${monitorLogIndex}`);
+    const data = await res.json();
+    const logs = data.logs || [];
+    monitorLogIndex = data.next_index || monitorLogIndex;
+
+    logs.forEach((entry) => {
+      const timeStr = formatTime(entry.timestamp);
+      const entryEl = document.createElement('div');
+      entryEl.className = `log-entry ${entry.level}`;
+      entryEl.innerHTML = `<span class="time">${timeStr}</span>${entry.message}`;
+      monitorLog.appendChild(entryEl);
+    });
+
+    if (logs.length > 0) {
+      monitorLog.scrollTop = monitorLog.scrollHeight;
+    }
+
+    // Detect completion from logs
+    const lastMsgs = logs.map((l) => l.message);
+    if (lastMsgs.some((m) => m.includes('OpenCode launcher dispatched'))) {
+      setMonitorPhase('done');
+      setTimeout(() => {
+        addMonitorLog('--- All done. You can close this monitor. ---', 'success');
+        setMonitorPhase('done');
+        clearInterval(monitorPollId);
+        monitorPollId = null;
+        // Still poll server status a bit more
+        setTimeout(() => checkServerStatus(), 5000);
+      }, 1000);
+    }
+  } catch (err) {
+    // Silently retry on failure
+  }
+}
+
+async function startMonitoring() {
+  showMonitor();
+  setMonitorPhase('launching');
+
+  // Initial server check
+  checkServerStatus();
+
+  // Poll logs every 1.5 seconds
+  if (monitorPollId) clearInterval(monitorPollId);
+  monitorPollId = setInterval(pollLaunchLogs, 1500);
+  pollLaunchLogs(); // immediate first call
+
+  // Also poll server status every 5 seconds
+  setInterval(checkServerStatus, 5000);
+}
+
+// ── Original UI functions ──
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -187,10 +317,27 @@ async function launch(target) {
 
     const data = await res.json();
     setStatus(data.message || 'Done.');
+
+    // ── If this was main_plus_opencode, start the monitor ──
+    if (target === 'main_plus_opencode' && data.status === 'launching') {
+      startMonitoring();
+      addMonitorLog(data.message, 'info');
+      addMonitorLog(`Profile: ${data.profile || 'unknown'}`, 'info');
+      addMonitorLog(`GPU layers: ${data.gpu_layers || '0'}`, 'info');
+      addMonitorLog('', 'info'); // spacer
+    }
   } catch (err) {
     setStatus(`Could not reach launcher API. Double-click entrance.bat and wait 2-3 seconds, then retry. Error: ${err.message}`);
+    if (monitorPollId) {
+      addMonitorLog(`ERROR: ${err.message}`, 'error');
+      setMonitorPhase('error');
+      clearInterval(monitorPollId);
+      monitorPollId = null;
+    }
   }
 }
+
+// ── Wire up buttons ──
 
 buttons.forEach((btn) => {
   btn.addEventListener('click', () => launch(btn.dataset.target));
@@ -206,5 +353,10 @@ force999El.addEventListener('change', () => {
   gpuLayersSliderEl.disabled = selectedValues.force_999;
 });
 
+// ── Startup ──
+
 loadTargetReadiness();
 loadMainOptions();
+
+// Show monitor section but collapsed
+monitorSection.classList.remove('visible');

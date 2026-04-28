@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo Starting VibeCoder entrance...
@@ -19,7 +19,7 @@ if not exist "entrance.js" (
     echo ERROR: Missing entrance.js in "%CD%".
     set "MISSING_FILES=1"
 )
-if "%MISSING_FILES%"=="1" (
+if "!MISSING_FILES!"=="1" (
     echo.
     echo Startup stopped because required launcher files are missing.
     pause
@@ -34,7 +34,7 @@ if %errorlevel%==0 (
     if %errorlevel%==0 (
         start "VibeCoder Launcher API" cmd /c "python launcher.py > launcher.log 2>&1"
     ) else (
-        echo ERROR: Python launcher not found (py/python missing in PATH).
+        echo ERROR: Python launcher not found ^(py/python missing in PATH^).
         pause
         exit /b 1
     )

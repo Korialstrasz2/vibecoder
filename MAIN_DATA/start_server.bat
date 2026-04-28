@@ -33,46 +33,58 @@ if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
 if not defined LLAMA_EXE set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
 if not defined LLAMA_ENABLE_VISION set "LLAMA_ENABLE_VISION=1"
 
-rem --- Compute mode selection: first interactive question ---
+rem --- Compute mode selection ---
+rem When CONTEXT_PROFILE is set (UI launch), skip interactive prompt and use preset GPU layers.
+rem When LLAMA_GPU_LAYERS is 0, treat as CPU-only; otherwise use GPU with the already-configured layers.
 set "LLAMA_GPU_LAYERS_GPU_DEFAULT=!LLAMA_GPU_LAYERS!"
-echo.
-echo --- Compute Mode ---
-echo 1. CPU only  - no GPU offload
-echo 2. GPU       - use configured GPU layers [default]
-echo.
-echo Choose compute mode (1-2) [default 2 in 4 seconds].
-echo Press Enter for GPU.
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$timeout = 4;" ^
-  "$deadline = [DateTime]::UtcNow.AddSeconds($timeout);" ^
-  "Write-Host -NoNewline 'Selection: ';" ^
-  "while ([DateTime]::UtcNow -lt $deadline) {" ^
-  "  if ([Console]::KeyAvailable) {" ^
-  "    $key = [Console]::ReadKey($true);" ^
-  "    if ($key.Key -eq 'Enter') { Write-Host ''; exit 2 }" ^
-  "    if ($key.KeyChar -eq '1') { Write-Host '1'; exit 1 }" ^
-  "    if ($key.KeyChar -eq '2') { Write-Host '2'; exit 2 }" ^
-  "  }" ^
-  "  Start-Sleep -Milliseconds 50;" ^
-  "}" ^
-  "Write-Host ''; exit 2"
-
-if errorlevel 2 (
+if defined CONTEXT_PROFILE (
+    rem UI/automated launch mode: skip interactive prompt
     set "LLAMA_COMPUTE_MODE=GPU"
-    set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
-) else if errorlevel 1 (
-    set "LLAMA_COMPUTE_MODE=CPU"
-    set "LLAMA_GPU_LAYERS=0"
+    if "!LLAMA_GPU_LAYERS!"=="0" set "LLAMA_COMPUTE_MODE=CPU"
+    echo [INFO] UI-launch mode: Compute mode=!LLAMA_COMPUTE_MODE! (GPU layers=!LLAMA_GPU_LAYERS!)
+    call :log UI launch mode detected, skipping compute-mode prompt: !LLAMA_COMPUTE_MODE!
 ) else (
-    rem If PowerShell is unavailable or returns unexpectedly, fail safe to GPU default.
-    set "LLAMA_COMPUTE_MODE=GPU"
-    set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
-)
+    rem Interactive mode
+    echo.
+    echo --- Compute Mode ---
+    echo 1. CPU only  - no GPU offload
+    echo 2. GPU       - use configured GPU layers [default]
+    echo.
+    echo Choose compute mode (1-2) [default 2 in 4 seconds].
+    echo Press Enter for GPU.
 
-echo [INFO] Compute mode: !LLAMA_COMPUTE_MODE!
-if /I "!LLAMA_COMPUTE_MODE!"=="CPU" echo [INFO] CPU-only selected: LLAMA_GPU_LAYERS=0
-if /I "!LLAMA_COMPUTE_MODE!"=="GPU" echo [INFO] GPU selected: LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+      "$timeout = 4;" ^
+      "$deadline = [DateTime]::UtcNow.AddSeconds($timeout);" ^
+      "Write-Host -NoNewline 'Selection: ';" ^
+      "while ([DateTime]::UtcNow -lt $deadline) {" ^
+      "  if ([Console]::KeyAvailable) {" ^
+      "    $key = [Console]::ReadKey($true);" ^
+      "    if ($key.Key -eq 'Enter') { Write-Host ''; exit 2 }" ^
+      "    if ($key.KeyChar -eq '1') { Write-Host '1'; exit 1 }" ^
+      "    if ($key.KeyChar -eq '2') { Write-Host '2'; exit 2 }" ^
+      "  }" ^
+      "  Start-Sleep -Milliseconds 50;" ^
+      "}" ^
+      "Write-Host ''; exit 2"
+
+    if errorlevel 2 (
+        set "LLAMA_COMPUTE_MODE=GPU"
+        set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
+    ) else if errorlevel 1 (
+        set "LLAMA_COMPUTE_MODE=CPU"
+        set "LLAMA_GPU_LAYERS=0"
+    ) else (
+        rem If PowerShell is unavailable or returns unexpectedly, fail safe to GPU default.
+        set "LLAMA_COMPUTE_MODE=GPU"
+        set "LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS_GPU_DEFAULT!"
+    )
+
+    echo [INFO] Compute mode: !LLAMA_COMPUTE_MODE!
+    if /I "!LLAMA_COMPUTE_MODE!"=="CPU" echo [INFO] CPU-only selected: LLAMA_GPU_LAYERS=0
+    if /I "!LLAMA_COMPUTE_MODE!"=="GPU" echo [INFO] GPU selected: LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!
+)
 
 call :log LLAMA_HOST=!LLAMA_HOST!
 call :log LLAMA_PORT=!LLAMA_PORT!

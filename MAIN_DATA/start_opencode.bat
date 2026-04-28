@@ -2,6 +2,11 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 
+rem --- Check for noninteractive flag ---
+set "NONINTERACTIVE=0"
+if /I "%~1"=="--noninteractive" set "NONINTERACTIVE=1"
+if /I "%~1"=="-ni" set "NONINTERACTIVE=1"
+
 set "LOG_FILE=%~dp0start_opencode.log"
 set "CONFIG_SOURCE=%~dp0config\opencode\opencode.jsonc"
 set "CONFIG_DIR=%USERPROFILE%\.config\opencode"
@@ -12,6 +17,7 @@ set "LEGACY_CONFIG_DEST=%LEGACY_CONFIG_DIR%\opencode.jsonc"
 call :log ==========================================
 call :log Starting OpenCode launcher in "%CD%"
 call :log Timestamp: %DATE% %TIME%
+if "!NONINTERACTIVE!"=="1" call :log Running in NONINTERACTIVE mode (launched from VibeCoder UI)
 
 echo.
 echo === Preparing OpenCode local-provider config ===
@@ -66,22 +72,8 @@ if errorlevel 1 (
 )
 
 echo Checking local llama-server at http://127.0.0.1:8076/v1/models ...
-curl -s --max-time 3 "http://127.0.0.1:8076/v1/models" >nul 2>nul
-if errorlevel 1 (
-  call :log ERROR: Local server check failed
-  echo [ERROR] Could not reach the local model server.
-  echo.
-  echo Start it first with:
-  echo   start_server.bat
-  echo.
-  echo Then check this URL in a browser:
-  echo   http://127.0.0.1:8076/v1/models
-  echo.
-  goto :fail
-)
-
-call :log Local server check passed
-echo Local server is reachable.
+call :check_server
+if errorlevel 1 goto :fail
 echo.
 
 if not exist "projects" mkdir "projects"
@@ -103,12 +95,42 @@ call :log OpenCode exited with code %OPENCODE_EXIT%
 
 endlocal & exit /b %OPENCODE_EXIT%
 
+:check_server
+curl -s --max-time 3 "http://127.0.0.1:8076/v1/models" >nul 2>nul
+if not errorlevel 1 (
+  call :log Local server check passed
+  echo Local server is reachable.
+  exit /b 0
+)
+call :log WARNING: Local server check failed
+
+if "!NONINTERACTIVE!"=="1" (
+    echo [WARN] Local server is not yet reachable at http://127.0.0.1:8076/v1/models
+    echo        In noninteractive mode, OpenCode will still launch but may not have a local model available.
+    call :log Noninteractive mode: server not reachable, but launching OpenCode anyway
+    exit /b 0
+)
+
+echo [WARN] Could not reach the local model server at http://127.0.0.1:8076/v1/models
+echo.
+echo Start it first with:
+echo   start_server.bat
+echo.
+set /p "CONTINUE=Do you still want to start OpenCode with OpenRouter without the server running? (Y/N): "
+if /i "%CONTINUE%"=="Y" (
+  call :log User chose to continue without local server - will use OpenRouter
+  exit /b 0
+)
+call :log User cancelled - server not available
+echo Cancelled.
+exit /b 1
+
 :fail
 echo.
 echo Script failed. See log:
 echo   "%LOG_FILE%"
 call :log Script failed
-pause
+if not "!NONINTERACTIVE!"=="1" pause
 endlocal & exit /b 1
 
 :log

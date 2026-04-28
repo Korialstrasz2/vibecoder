@@ -2,10 +2,13 @@ import json
 import re
 import shutil
 import subprocess
+import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 ROOT = Path(__file__).resolve().parent
 MAIN_DATA_DIR = ROOT / "MAIN_DATA"
@@ -36,11 +39,71 @@ MOE_LAYER_BUCKETS = [(8, 32), (16, 40), (32, 48), (64, 64), (120, 80)]
 def run_bat_file(path: Path, args: list[str] | None = None) -> None:
     if not path.exists():
         raise FileNotFoundError(f"Missing file: {path}")
-    arg_part = ""
+    cmd = [str(path)]
     if args:
-        arg_part = " " + " ".join(f"\"{arg}\"" for arg in args)
-    command = f'start "" "{path}"{arg_part}'
-    subprocess.Popen(["cmd", "/c", command], shell=False, cwd=str(path.parent))
+        cmd.extend(args)
+    subprocess.Popen(cmd, cwd=str(path.parent), creationflags=subprocess.CREATE_NEW_CONSOLE)
+
+
+# ── Shared log buffer for HTML monitoring ──
+LAUNCH_LOGS: list[dict] = []
+LAUNCH_LOGS_LOCK = threading.Lock()
+
+
+def _launch_add_log(message: str, level: str = "info") -> None:
+    """Append a log entry visible to the HTML monitor."""
+    with LAUNCH_LOGS_LOCK:
+        LAUNCH_LOGS.append({
+            "timestamp": time.time(),
+            "message": message,
+            "level": level,
+        })
+    print(f"[LAUNCHER] [{level.upper()}] {message}", flush=True)
+
+
+def _check_server_health(timeout: float = 3.0) -> bool:
+    """Return True if llama-server is responding at http://127.0.0.1:8076/v1/models."""
+    try:
+        req = urllib.request.Request("http://127.0.0.1:8076/v1/models", method="GET")
+        urllib.request.urlopen(req, timeout=timeout)
+        return True
+    except urllib.error.HTTPError:
+        # Server responded (e.g. 404) but IS running
+        return True
+    except Exception:
+        return False
+
+
+def _background_main_plus_opencode(script: Path, gpu_layers: int) -> None:
+    """Run server startup polling + OpenCode launch in a background thread."""
+    _launch_add_log(f"Launching server profile: {script.name} (GPU layers={gpu_layers})", "info")
+    run_bat_file(script, args=[str(gpu_layers)])
+
+    _launch_add_log("Waiting for llama-server to be ready at http://127.0.0.1:8076 ...", "info")
+
+    max_attempts = 60      # 60 * 2s = 120s total
+    server_ready = False
+
+    for attempt in range(1, max_attempts + 1):
+        time.sleep(2)
+        if _check_server_health():
+            _launch_add_log(f"llama-server is online! (ready after ~{attempt * 2}s)", "success")
+            server_ready = True
+            break
+        if attempt % 5 == 0:
+            _launch_add_log(f"Still waiting for server... ({attempt * 2}s elapsed)", "info")
+
+    if server_ready:
+        _launch_add_log("Server confirmed running. Launching OpenCode (--noninteractive)...", "info")
+    else:
+        _launch_add_log(
+            f"TIMEOUT: Server not reachable after {max_attempts * 2}s. Launching OpenCode anyway (will need OpenRouter fallback).",
+            "warn",
+        )
+
+    opencode_path = MAIN_DATA_DIR / "start_opencode.bat"
+    run_bat_file(opencode_path, args=["--noninteractive"])
+    _launch_add_log("OpenCode launcher dispatched.", "success")
 
 
 def _format_gb(size_bytes: int) -> float:
@@ -282,7 +345,7 @@ def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) ->
         lines.extend([f"set \"CUDA_VISIBLE_DEVICES={gpu_selection}\"", "set \"GGML_CUDA_DEVICE=0\""])
 
     lines.append(f"echo [PROFILE] LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS% (recommended {recommended_layers}, max {max_layers})")
-    lines.append('call "..\\start_server.bat"')
+    lines.append('call "start_server.bat"')
 
     script_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
     return script_path, {
@@ -366,6 +429,23 @@ class LauncherHandler(BaseHTTPRequestHandler):
             js = (ROOT / "entrance.js").read_text(encoding="utf-8")
             self._write_text(200, js, "application/javascript; charset=utf-8")
             return
+        if clean_path == "/launch-log":
+            parsed = urlparse(self.path)
+            qs = parse_qs(parsed.query)
+            since_str = qs.get("since", ["0"])[0]
+            try:
+                since = int(since_str)
+            except (ValueError, TypeError):
+                since = 0
+            with LAUNCH_LOGS_LOCK:
+                logs_since = LAUNCH_LOGS[since:]
+                next_index = len(LAUNCH_LOGS)
+            self._write_json(200, {"logs": logs_since, "next_index": next_index})
+            return
+        if clean_path == "/server-status":
+            online = _check_server_health()
+            self._write_json(200, {"online": online})
+            return
         self._write_json(404, {"message": "Not found"})
 
     def do_POST(self):
@@ -425,12 +505,27 @@ class LauncherHandler(BaseHTTPRequestHandler):
                     gpu_layers = max(0, min(requested_layers, max_layers))
 
                 script = Path(profile_entry["script_path"])
-                run_bat_file(script, args=[str(gpu_layers)])
-                time.sleep(4)
-                run_bat_file(MAIN_DATA_DIR / "start_opencode.bat")
+                _launch_add_log(f"--- Starting Main + OpenCode ---", "info")
+                _launch_add_log(f"Model: {model_path}", "info")
+                _launch_add_log(f"Context: {context}", "info")
+                _launch_add_log(f"GPU selection: {gpu_selection}", "info")
+                _launch_add_log(f"GPU layers: {gpu_layers} (force_999={force_999})", "info")
+
+                thread = threading.Thread(
+                    target=_background_main_plus_opencode,
+                    args=(script, gpu_layers),
+                    daemon=True,
+                )
+                thread.start()
+
                 self._write_json(
                     200,
-                    {"message": f"Started main profile: {script.name} (LLAMA_GPU_LAYERS={gpu_layers}), then launched OpenCode after 4s."},
+                    {
+                        "message": f"Server startup initiated with {script.name}. Monitoring progress...",
+                        "status": "launching",
+                        "profile": script.name,
+                        "gpu_layers": gpu_layers,
+                    },
                 )
                 return
 
