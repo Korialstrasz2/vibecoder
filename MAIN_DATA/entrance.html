@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VibeCoder Launcher</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; }
+    .wrap { max-width: 760px; margin: 48px auto; padding: 24px; }
+    h1 { margin-top:0; font-size: 1.8rem; }
+    .card { background:#1e293b; border:1px solid #334155; border-radius:10px; padding:18px; margin:14px 0; }
+    button { background:#3b82f6; color:white; border:none; border-radius:8px; padding:10px 14px; cursor:pointer; }
+    button:hover { background:#2563eb; }
+    #status { margin-top:16px; padding:10px; background:#0b1220; border:1px solid #334155; border-radius:8px; min-height:20px; }
+    code { color:#93c5fd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>VibeCoder Start Menu</h1>
+    <p>Choose what to launch. This page talks to <code>launcher.py</code> on <code>http://127.0.0.1:8765</code>.</p>
+
+    <div class="card">
+      <h3>Assistant Small</h3>
+      <p>Runs <code>ASSISTANT_SMALL/start_server.bat</code>.</p>
+      <button data-target="assistant_small">Start Assistant Small</button>
+    </div>
+
+    <div class="card">
+      <h3>Files for Connectors Server</h3>
+      <p>Runs <code>FILES_FOR_CONNECTORS/server files/start_server_main_pc.bat</code>.</p>
+      <button data-target="connectors_server">Start Connectors Server</button>
+    </div>
+
+    <div class="card">
+      <h3>Main Server + OpenCode</h3>
+      <p>Runs <code>MAIN_DATA/start_server.bat</code> and <code>MAIN_DATA/start_opencode.bat</code>.</p>
+      <button data-target="main_plus_opencode">Start Main + OpenCode</button>
+    </div>
+
+    <div id="status">Waiting for action.</div>
+  </div>
+  <script src="entrance.js"></script>
+</body>
+</html>
