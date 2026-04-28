@@ -20,7 +20,7 @@ TARGET_COMMANDS = {
     "assistant_small": [ROOT / "ASSISTANT_SMALL" / "start_server.bat"],
     "connectors_server": [ROOT / "FILES_FOR_CONNECTORS" / "server files" / "start_server_main_pc.bat"],
     "main_plus_opencode": [
-        MAIN_DATA_DIR / "start_server.bat",
+        MAIN_DATA_DIR / "start_server_with_params.bat",
         MAIN_DATA_DIR / "start_opencode.bat",
     ],
 }
@@ -484,9 +484,15 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 self._write_json(400, {"message": f"Cannot start {target}. Missing files found.", "missing": target_status["missing"]})
                 return
 
-            if target == "main_plus_opencode" and payload.get("profile"):
-                profile = payload["profile"]
+            if target == "main_plus_opencode":
+                profile = payload.get("profile") or {}
                 model_path = str(profile.get("model_path", ""))
+                if not model_path:
+                    model_path = choose_default_model(models) or ""
+                if not model_path:
+                    self._write_json(400, {"message": "No model available. Add models to MAIN_DATA/models first."})
+                    return
+
                 context = int(profile.get("context", 65536))
                 gpu_selection = str(profile.get("gpu_selection", "all"))
 
@@ -522,7 +528,7 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 self._write_json(
                     200,
                     {
-                        "message": f"Server startup initiated (model={Path(model_path).name}, ctx={context}, layers={gpu_layers}). Monitoring progress...",
+                        "message": f"Server startup initiated with start_server_with_params.bat. Monitoring progress...",
                         "status": "launching",
                         "profile": Path(model_path).name,
                         "gpu_layers": gpu_layers,
