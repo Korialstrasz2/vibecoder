@@ -31,6 +31,14 @@ class LauncherHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _write_text(self, status: int, body: str, content_type: str) -> None:
+        body_bytes = body.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body_bytes)))
+        self.end_headers()
+        self.wfile.write(body_bytes)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -42,6 +50,17 @@ class LauncherHandler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._write_json(200, {"status": "ok"})
             return
+
+        if self.path in {"/", "/entrance.html"}:
+            html = (ROOT / "entrance.html").read_text(encoding="utf-8")
+            self._write_text(200, html, "text/html; charset=utf-8")
+            return
+
+        if self.path == "/entrance.js":
+            js = (ROOT / "entrance.js").read_text(encoding="utf-8")
+            self._write_text(200, js, "application/javascript; charset=utf-8")
+            return
+
         self._write_json(404, {"message": "Not found"})
 
     def do_POST(self):
