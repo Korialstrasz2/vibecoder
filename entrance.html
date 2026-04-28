@@ -12,9 +12,19 @@
     button { background:#3b82f6; color:white; border:none; border-radius:8px; padding:10px 14px; cursor:pointer; }
     button:hover { background:#2563eb; }
     button:disabled { background:#475569; cursor:not-allowed; opacity:.8; }
-    select { width:100%; background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; margin-top:6px; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin:10px 0 16px 0; }
+    .grid { display:grid; grid-template-columns:1fr; gap:12px; margin:10px 0 16px 0; }
     label { font-size:.9rem; color:#cbd5e1; }
+    .button-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .choice-btn {
+      background:#0b1220;
+      color:#cbd5e1;
+      border:1px solid #334155;
+      border-radius:999px;
+      padding:8px 12px;
+      font-size:.9rem;
+    }
+    .choice-btn:hover { background:#172033; border-color:#475569; }
+    .choice-btn.active { background:#2563eb; color:#fff; border-color:#60a5fa; }
     .meta { margin-top: 10px; padding: 10px; border:1px solid #334155; border-radius:8px; background:#0b1220; font-size:.9rem; color:#cbd5e1; }
     #status { margin-top:16px; padding:10px; background:#0b1220; border:1px solid #334155; border-radius:8px; min-height:20px; }
     code { color:#93c5fd; }
@@ -43,17 +53,18 @@
 
       <div class="grid">
         <div>
-          <label for="gpuSelection">GPU target</label>
-          <select id="gpuSelection"></select>
+          <label>GPU target</label>
+          <div id="gpuSelection" class="button-row" role="radiogroup" aria-label="GPU target"></div>
         </div>
         <div>
-          <label for="contextSize">Context</label>
-          <select id="contextSize"></select>
+          <label>Context</label>
+          <div id="contextSize" class="button-row" role="radiogroup" aria-label="Context size"></div>
+        </div>
+        <div>
+          <label>Model (GGUF size + params + architecture)</label>
+          <div id="modelSelect" class="button-row" role="radiogroup" aria-label="Model selection"></div>
         </div>
       </div>
-
-      <label for="modelSelect">Model (GGUF size + params + architecture)</label>
-      <select id="modelSelect"></select>
 
       <div class="meta" id="fitEstimate">Calculating VRAM fit estimate...</div>
 
