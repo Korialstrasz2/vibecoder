@@ -1,10 +1,10 @@
 const statusEl = document.getElementById('status');
 const buttons = Array.from(document.querySelectorAll('button[data-target]'));
 
-const gpuModeEl = document.getElementById('gpuMode');
-const gpuIndexEl = document.getElementById('gpuIndex');
+const gpuSelectionEl = document.getElementById('gpuSelection');
 const contextSizeEl = document.getElementById('contextSize');
 const modelSelectEl = document.getElementById('modelSelect');
+const fitEstimateEl = document.getElementById('fitEstimate');
 const startMainBtn = document.getElementById('startMainBtn');
 
 function setStatus(message) {
@@ -17,11 +17,7 @@ function formatModelLabel(model) {
     : model.model_type === 'moe'
       ? `${model.param_tag} (active ${model.active_params_b}B / total ${model.total_params_b}B)`
       : `${model.param_tag} dense`;
-  return `${model.name} | ${model.size_gb} GB | ${paramText} | ${model.architecture}`;
-}
-
-function updateGpuSelectionLock() {
-  gpuIndexEl.disabled = gpuModeEl.value !== 'single';
+  return `${model.name} | ${model.size_gb} GB | ${paramText} | ${model.architecture} | ~${model.estimated_layers} layers`;
 }
 
 async function loadTargetReadiness() {
@@ -49,17 +45,37 @@ async function loadTargetReadiness() {
   }
 }
 
+async function updateEstimate() {
+  if (!modelSelectEl.value) return;
+  try {
+    fitEstimateEl.textContent = 'Calculating VRAM fit estimate...';
+    const res = await fetch('/main/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_path: modelSelectEl.value,
+        context: Number(contextSizeEl.value || '65536'),
+        gpu_selection: gpuSelectionEl.value || 'all'
+      })
+    });
+    const est = await res.json();
+    fitEstimateEl.textContent = `Fit: ${est.estimated_fit} | Recommended GPU layers: ${est.recommended_gpu_layers}/${est.estimated_layer_count} | Selected VRAM: ${est.selected_vram_gb ?? 0} GB | Usable VRAM: ${est.usable_vram_gb ?? 0} GB | KV cache est: ${est.kv_cache_gb ?? 0} GB`;
+  } catch (err) {
+    fitEstimateEl.textContent = `Could not compute estimate: ${err.message}`;
+  }
+}
+
 async function loadMainOptions() {
   try {
     const res = await fetch('/main/options');
     const data = await res.json();
 
-    gpuIndexEl.innerHTML = '';
-    (data.gpus || []).forEach((gpu) => {
+    gpuSelectionEl.innerHTML = '';
+    (data.gpu_choices || []).forEach((entry) => {
       const option = document.createElement('option');
-      option.value = gpu.index;
-      option.textContent = `${gpu.index} - ${gpu.name} (${gpu.vram_gb} GB)`;
-      gpuIndexEl.appendChild(option);
+      option.value = entry.value;
+      option.textContent = entry.label;
+      gpuSelectionEl.appendChild(option);
     });
 
     contextSizeEl.innerHTML = '';
@@ -79,17 +95,18 @@ async function loadMainOptions() {
     });
 
     const defaults = data.defaults || {};
-    if (defaults.gpu_mode) gpuModeEl.value = defaults.gpu_mode;
-    if (defaults.gpu_index) gpuIndexEl.value = defaults.gpu_index;
+    if (defaults.gpu_selection) gpuSelectionEl.value = defaults.gpu_selection;
     if (defaults.context) contextSizeEl.value = String(defaults.context);
     if (defaults.model_path) modelSelectEl.value = defaults.model_path;
 
     if (modelSelectEl.options.length === 0) {
       startMainBtn.disabled = true;
       setStatus('No GGUF models found in MAIN_DATA/models. Add models first.');
+      fitEstimateEl.textContent = 'No model available for estimation.';
+      return;
     }
 
-    updateGpuSelectionLock();
+    await updateEstimate();
   } catch (err) {
     setStatus(`Could not load profile options: ${err.message}`);
   }
@@ -104,8 +121,7 @@ async function launch(target) {
       payload.profile = {
         model_path: modelSelectEl.value,
         context: Number(contextSizeEl.value || '65536'),
-        gpu_mode: gpuModeEl.value,
-        gpu_index: gpuIndexEl.value || null,
+        gpu_selection: gpuSelectionEl.value || 'all',
       };
     }
 
@@ -122,7 +138,10 @@ async function launch(target) {
   }
 }
 
-gpuModeEl?.addEventListener('change', updateGpuSelectionLock);
+[gpuSelectionEl, contextSizeEl, modelSelectEl].forEach((el) => {
+  el?.addEventListener('change', updateEstimate);
+});
+
 buttons.forEach((btn) => {
   btn.addEventListener('click', () => launch(btn.dataset.target));
 });

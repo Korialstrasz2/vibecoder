@@ -15,6 +15,7 @@
     select { width:100%; background:#0b1220; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; margin-top:6px; }
     .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin:10px 0 16px 0; }
     label { font-size:.9rem; color:#cbd5e1; }
+    .meta { margin-top: 10px; padding: 10px; border:1px solid #334155; border-radius:8px; background:#0b1220; font-size:.9rem; color:#cbd5e1; }
     #status { margin-top:16px; padding:10px; background:#0b1220; border:1px solid #334155; border-radius:8px; min-height:20px; }
     code { color:#93c5fd; }
   </style>
@@ -38,20 +39,12 @@
 
     <div class="card">
       <h3>Main Server + OpenCode</h3>
-      <p>Pick GPU, context, and model profile then launch.</p>
+      <p>Pick exact GPU target, context, and model profile then launch.</p>
 
       <div class="grid">
         <div>
-          <label for="gpuMode">GPU mode</label>
-          <select id="gpuMode">
-            <option value="single">Single GPU</option>
-            <option value="all">All GPUs</option>
-            <option value="cpu">CPU only</option>
-          </select>
-        </div>
-        <div>
-          <label for="gpuIndex">Single GPU target</label>
-          <select id="gpuIndex"></select>
+          <label for="gpuSelection">GPU target</label>
+          <select id="gpuSelection"></select>
         </div>
         <div>
           <label for="contextSize">Context</label>
@@ -61,6 +54,8 @@
 
       <label for="modelSelect">Model (GGUF size + params + architecture)</label>
       <select id="modelSelect"></select>
+
+      <div class="meta" id="fitEstimate">Calculating VRAM fit estimate...</div>
 
       <div style="margin-top:14px;">
         <button data-target="main_plus_opencode" id="startMainBtn">Start Main + OpenCode</button>
