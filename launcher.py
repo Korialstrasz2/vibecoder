@@ -1,6 +1,8 @@
 import json
 import re
+import shutil
 import subprocess
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -9,6 +11,7 @@ ROOT = Path(__file__).resolve().parent
 MAIN_DATA_DIR = ROOT / "MAIN_DATA"
 MAIN_MODELS_DIR = MAIN_DATA_DIR / "models"
 PROFILE_DIR = MAIN_DATA_DIR / "startup_bat_profiles"
+PROFILE_REGISTRY: dict[tuple[str, int, str], dict] = {}
 
 TARGET_COMMANDS = {
     "assistant_small": [ROOT / "ASSISTANT_SMALL" / "start_server.bat"],
@@ -30,10 +33,14 @@ DENSE_LAYER_BUCKETS = [(4, 32), (8, 36), (14, 40), (27, 48), (34, 60), (80, 80)]
 MOE_LAYER_BUCKETS = [(8, 32), (16, 40), (32, 48), (64, 64), (120, 80)]
 
 
-def run_bat_file(path: Path) -> None:
+def run_bat_file(path: Path, args: list[str] | None = None) -> None:
     if not path.exists():
         raise FileNotFoundError(f"Missing file: {path}")
-    subprocess.Popen(["cmd", "/c", "start", "", str(path)], shell=False, cwd=str(path.parent))
+    arg_part = ""
+    if args:
+        arg_part = " " + " ".join(f"\"{arg}\"" for arg in args)
+    command = f'start "" "{path}"{arg_part}'
+    subprocess.Popen(["cmd", "/c", command], shell=False, cwd=str(path.parent))
 
 
 def _format_gb(size_bytes: int) -> float:
@@ -212,13 +219,16 @@ def estimate_fit(models: list[dict], gpus: list[dict], model_path: str, context:
 
 
 def build_main_options() -> dict:
+    global PROFILE_REGISTRY
     gpus = detect_gpus()
     models = scan_models()
+    contexts = [16384, 32768, 65536, 131072]
+    PROFILE_REGISTRY = regenerate_profile_scripts(models, gpus, contexts) if models else {}
     default_gpu = choose_default_gpu(gpus)
     return {
         "gpus": gpus,
         "models": models,
-        "contexts": [16384, 32768, 65536, 131072],
+        "contexts": contexts,
         "gpu_choices": ([{"value": "cpu", "label": "CPU only"}, {"value": "all", "label": "All detected GPUs"}] + [
             {"value": gpu["index"], "label": f"GPU {gpu['index']} - {gpu['name']} ({gpu['vram_gb']} GB)"} for gpu in gpus
         ]),
@@ -227,23 +237,31 @@ def build_main_options() -> dict:
             "gpu_selection": default_gpu,
             "model_path": choose_default_model(models),
         },
+        "generated_profiles": len(PROFILE_REGISTRY),
     }
 
 
-def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) -> Path:
+def _profile_key(model_path: str, context: int, gpu_selection: str) -> tuple[str, int, str]:
+    return (model_path, int(context), str(gpu_selection))
+
+
+def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) -> tuple[Path, dict]:
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
-    model_abs = (ROOT / Path(profile["model_path"])).resolve()
+    model_path = str(profile["model_path"])
+    model_abs = (ROOT / Path(model_path)).resolve()
     if not model_abs.exists():
         raise FileNotFoundError(f"Selected model does not exist: {model_abs}")
 
     context = int(profile.get("context", 65536))
     gpu_selection = str(profile.get("gpu_selection", "all"))
-    estimate = estimate_fit(models, gpus, profile["model_path"], context, gpu_selection)
-    gpu_layers = int(estimate["recommended_gpu_layers"])
+    estimate = estimate_fit(models, gpus, model_path, context, gpu_selection)
+    recommended_layers = int(estimate["recommended_gpu_layers"])
+    max_layers = int(estimate["estimated_layer_count"])
 
-    slug_base = re.sub(r"[^a-zA-Z0-9_-]", "_", model_abs.stem)[:40]
-    script_path = PROFILE_DIR / f"start_profile_{slug_base}_{context}_{gpu_selection}.bat"
+    slug_model = re.sub(r"[^a-zA-Z0-9_-]", "_", Path(model_path).stem)[:40]
+    slug_gpu = re.sub(r"[^a-zA-Z0-9_-]", "_", gpu_selection)
+    script_path = PROFILE_DIR / f"start_profile_{slug_model}_{context}_{slug_gpu}.bat"
 
     lines = [
         "@echo off",
@@ -252,7 +270,8 @@ def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) ->
         f"set \"MODEL_FILE={model_abs}\"",
         f"set \"LLAMA_CTX={context}\"",
         "set \"CONTEXT_PROFILE=ui-profile\"",
-        f"set \"LLAMA_GPU_LAYERS={gpu_layers}\"",
+        "set \"LLAMA_GPU_LAYERS=%~1\"",
+        f"if \"%LLAMA_GPU_LAYERS%\"==\"\" set \"LLAMA_GPU_LAYERS={recommended_layers}\"",
     ]
 
     if gpu_selection == "cpu":
@@ -262,11 +281,36 @@ def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) ->
     else:
         lines.extend([f"set \"CUDA_VISIBLE_DEVICES={gpu_selection}\"", "set \"GGML_CUDA_DEVICE=0\""])
 
-    lines.append("echo [PROFILE] Recommended LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS%")
+    lines.append(f"echo [PROFILE] LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS% (recommended {recommended_layers}, max {max_layers})")
     lines.append('call "..\\start_server.bat"')
 
     script_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
-    return script_path
+    return script_path, {
+        "recommended_gpu_layers": recommended_layers,
+        "estimated_layer_count": max_layers,
+    }
+
+
+def regenerate_profile_scripts(models: list[dict], gpus: list[dict], contexts: list[int]) -> dict[tuple[str, int, str], dict]:
+    if PROFILE_DIR.exists():
+        shutil.rmtree(PROFILE_DIR)
+    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    gpu_values = ["cpu", "all"] + [gpu["index"] for gpu in gpus]
+    registry: dict[tuple[str, int, str], dict] = {}
+
+    for model in models:
+        for context in contexts:
+            for gpu_selection in gpu_values:
+                script_path, metadata = build_profile_script(
+                    {"model_path": model["path"], "context": context, "gpu_selection": gpu_selection},
+                    models=models,
+                    gpus=gpus,
+                )
+                key = _profile_key(model["path"], context, gpu_selection)
+                registry[key] = {"script_path": script_path, **metadata}
+
+    return registry
 
 
 def build_target_status() -> dict:
@@ -358,10 +402,36 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 return
 
             if target == "main_plus_opencode" and payload.get("profile"):
-                script = build_profile_script(payload["profile"], models=models, gpus=gpus)
-                run_bat_file(script)
+                global PROFILE_REGISTRY
+                profile = payload["profile"]
+                model_path = str(profile.get("model_path", ""))
+                context = int(profile.get("context", 65536))
+                gpu_selection = str(profile.get("gpu_selection", "all"))
+                key = _profile_key(model_path, context, gpu_selection)
+
+                if key not in PROFILE_REGISTRY:
+                    PROFILE_REGISTRY = regenerate_profile_scripts(models, gpus, [16384, 32768, 65536, 131072])
+
+                profile_entry = PROFILE_REGISTRY.get(key)
+                if not profile_entry:
+                    raise ValueError("Unable to find generated startup profile for selection")
+
+                max_layers = int(profile_entry.get("estimated_layer_count", 0))
+                force_999 = bool(profile.get("force_999", False))
+                if force_999:
+                    gpu_layers = 999
+                else:
+                    requested_layers = int(profile.get("gpu_layers", profile_entry.get("recommended_gpu_layers", 0)))
+                    gpu_layers = max(0, min(requested_layers, max_layers))
+
+                script = Path(profile_entry["script_path"])
+                run_bat_file(script, args=[str(gpu_layers)])
+                time.sleep(4)
                 run_bat_file(MAIN_DATA_DIR / "start_opencode.bat")
-                self._write_json(200, {"message": f"Started main profile: {script.name}"})
+                self._write_json(
+                    200,
+                    {"message": f"Started main profile: {script.name} (LLAMA_GPU_LAYERS={gpu_layers}), then launched OpenCode after 4s."},
+                )
                 return
 
             for command in TARGET_COMMANDS[target]:

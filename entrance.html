@@ -26,6 +26,10 @@
     .choice-btn:hover { background:#172033; border-color:#475569; }
     .choice-btn.active { background:#2563eb; color:#fff; border-color:#60a5fa; }
     .meta { margin-top: 10px; padding: 10px; border:1px solid #334155; border-radius:8px; background:#0b1220; font-size:.9rem; color:#cbd5e1; }
+    .slider-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    input[type="range"] { width: 100%; max-width: 480px; }
+    .checkbox-row { display:flex; align-items:center; gap:8px; }
+    .small { font-size:.85rem; color:#94a3b8; }
     #status { margin-top:16px; padding:10px; background:#0b1220; border:1px solid #334155; border-radius:8px; min-height:20px; }
     code { color:#93c5fd; }
   </style>
@@ -63,6 +67,18 @@
         <div>
           <label>Model (GGUF size + params + architecture)</label>
           <div id="modelSelect" class="button-row" role="radiogroup" aria-label="Model selection"></div>
+        </div>
+        <div>
+          <label>GPU Layers</label>
+          <div class="slider-row">
+            <input type="range" id="gpuLayersSlider" min="0" max="0" value="0" />
+            <span id="gpuLayersValue">0</span>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="force999" />
+            <label for="force999">999</label>
+          </div>
+          <div class="small" id="gpuLayersHint">Recommended layers will appear after estimate.</div>
         </div>
       </div>
 
