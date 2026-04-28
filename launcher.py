@@ -19,8 +19,9 @@ TARGET_COMMANDS = {
     ],
 }
 
-DENSE_RE = re.compile(r"(?i)(?<!x)(\d{1,3})b")
-MOE_RE = re.compile(r"(?i)([ae])(\d{1,3})x(\d{1,3})b")
+DENSE_RE = re.compile(r"(?i)(?<!x)(\d{1,3}(?:\.\d+)?)b")
+MOE_RE = re.compile(r"(?i)([ae])(\d{1,3}(?:\.\d+)?)x(\d{1,3}(?:\.\d+)?)b")
+ACTIVE_RE = re.compile(r"(?i)(?:^|[-_])a(\d{1,3}(?:\.\d+)?)b(?:$|[-_])")
 ARCH_PATTERNS = ["qwen", "llama", "mistral", "mixtral", "deepseek", "gemma", "phi", "yi", "command-r", "gpt-oss"]
 
 
@@ -68,23 +69,35 @@ def infer_architecture(filename_lower: str) -> str:
 
 def parse_param_tag(filename: str) -> dict:
     lower = filename.lower()
+    dense_match = DENSE_RE.search(lower)
+    dense_count = float(dense_match.group(1)) if dense_match else None
+
     moe_match = MOE_RE.search(lower)
     if moe_match:
         family, experts_raw, active_raw = moe_match.groups()
-        experts = int(experts_raw)
-        active = int(active_raw)
+        experts = float(experts_raw)
+        active = float(active_raw)
         return {
-            "param_tag": f"{family.upper()}{experts}x{active}B",
+            "param_tag": f"{family.upper()}{experts:g}x{active:g}B",
             "model_type": "moe",
             "active_params_b": active,
             "total_params_b": experts * active,
         }
 
-    dense_match = DENSE_RE.search(lower)
-    if dense_match:
-        count = int(dense_match.group(1))
+    active_only_match = ACTIVE_RE.search(lower)
+    if active_only_match and dense_count:
+        active = float(active_only_match.group(1))
         return {
-            "param_tag": f"{count}B",
+            "param_tag": f"{dense_count:g}B-A{active:g}B",
+            "model_type": "moe",
+            "active_params_b": active,
+            "total_params_b": dense_count,
+        }
+
+    if dense_count:
+        count = dense_count
+        return {
+            "param_tag": f"{count:g}B",
             "model_type": "dense",
             "active_params_b": count,
             "total_params_b": count,
@@ -94,7 +107,10 @@ def parse_param_tag(filename: str) -> dict:
 
 
 def infer_layer_count(model: dict) -> int:
-    params = model.get("active_params_b") or model.get("total_params_b") or 7
+    if model.get("model_type") == "moe":
+        params = model.get("total_params_b") or model.get("active_params_b") or 7
+    else:
+        params = model.get("active_params_b") or model.get("total_params_b") or 7
     buckets = MOE_LAYER_BUCKETS if model.get("model_type") == "moe" else DENSE_LAYER_BUCKETS
     for limit, layers in buckets:
         if params <= limit:
@@ -170,7 +186,7 @@ def estimate_fit(models: list[dict], gpus: list[dict], model_path: str, context:
     reserved = 1.25 * len(selected_gpus)
 
     # Heuristic estimation (GGUF + kv cache + runtime overhead).
-    kv_cache_gb = round((context_tokens / 1024.0) * active_params_b * 0.015, 2)
+    kv_cache_gb = round((context_tokens / 1024.0) * active_params_b * 0.007, 2)
     runtime_overhead_gb = 0.8
     usable_vram = max(selected_vram - reserved - kv_cache_gb - runtime_overhead_gb, 0.0)
 
@@ -178,8 +194,8 @@ def estimate_fit(models: list[dict], gpus: list[dict], model_path: str, context:
     offload_fraction = 0.0 if weights_need_gb <= 0 else max(min(usable_vram / weights_need_gb, 1.0), 0.0)
 
     recommended_layers = int(round(offload_fraction * layer_count))
-    if usable_vram < 1.0:
-        recommended_layers = 0
+    if selected_vram > 0 and recommended_layers == 0 and layer_count > 0:
+        recommended_layers = 1
     recommended_layers = max(0, min(recommended_layers, layer_count))
 
     fit = "full" if offload_fraction >= 0.95 else "partial" if offload_fraction > 0 else "cpu_fallback"

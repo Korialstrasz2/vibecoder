@@ -6,6 +6,11 @@ const contextSizeEl = document.getElementById('contextSize');
 const modelSelectEl = document.getElementById('modelSelect');
 const fitEstimateEl = document.getElementById('fitEstimate');
 const startMainBtn = document.getElementById('startMainBtn');
+const selectedValues = {
+  gpu_selection: 'all',
+  context: '65536',
+  model_path: '',
+};
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -46,16 +51,16 @@ async function loadTargetReadiness() {
 }
 
 async function updateEstimate() {
-  if (!modelSelectEl.value) return;
+  if (!selectedValues.model_path) return;
   try {
     fitEstimateEl.textContent = 'Calculating VRAM fit estimate...';
     const res = await fetch('/main/estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model_path: modelSelectEl.value,
-        context: Number(contextSizeEl.value || '65536'),
-        gpu_selection: gpuSelectionEl.value || 'all'
+        model_path: selectedValues.model_path,
+        context: Number(selectedValues.context || '65536'),
+        gpu_selection: selectedValues.gpu_selection || 'all'
       })
     });
     const est = await res.json();
@@ -65,47 +70,75 @@ async function updateEstimate() {
   }
 }
 
+function renderChoiceButtons(container, entries, selectedValue, onSelect) {
+  container.innerHTML = '';
+  entries.forEach((entry) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'choice-btn';
+    button.textContent = entry.label;
+    button.dataset.value = entry.value;
+    button.setAttribute('role', 'radio');
+    button.setAttribute('aria-checked', String(entry.value === selectedValue));
+    if (entry.value === selectedValue) {
+      button.classList.add('active');
+    }
+    button.addEventListener('click', () => onSelect(entry.value));
+    container.appendChild(button);
+  });
+}
+
 async function loadMainOptions() {
   try {
     const res = await fetch('/main/options');
     const data = await res.json();
 
-    gpuSelectionEl.innerHTML = '';
-    (data.gpu_choices || []).forEach((entry) => {
-      const option = document.createElement('option');
-      option.value = entry.value;
-      option.textContent = entry.label;
-      gpuSelectionEl.appendChild(option);
-    });
-
-    contextSizeEl.innerHTML = '';
-    (data.contexts || []).forEach((ctx) => {
-      const option = document.createElement('option');
-      option.value = String(ctx);
-      option.textContent = `${Math.floor(ctx / 1024)}k`;
-      contextSizeEl.appendChild(option);
-    });
-
-    modelSelectEl.innerHTML = '';
-    (data.models || []).forEach((model) => {
-      const option = document.createElement('option');
-      option.value = model.path;
-      option.textContent = formatModelLabel(model);
-      modelSelectEl.appendChild(option);
-    });
-
     const defaults = data.defaults || {};
-    if (defaults.gpu_selection) gpuSelectionEl.value = defaults.gpu_selection;
-    if (defaults.context) contextSizeEl.value = String(defaults.context);
-    if (defaults.model_path) modelSelectEl.value = defaults.model_path;
+    selectedValues.gpu_selection = defaults.gpu_selection || data.gpu_choices?.[0]?.value || 'all';
+    selectedValues.context = String(defaults.context || data.contexts?.[0] || 65536);
+    selectedValues.model_path = defaults.model_path || data.models?.[0]?.path || '';
 
-    if (modelSelectEl.options.length === 0) {
+    if ((data.models || []).length === 0) {
       startMainBtn.disabled = true;
       setStatus('No GGUF models found in MAIN_DATA/models. Add models first.');
       fitEstimateEl.textContent = 'No model available for estimation.';
       return;
     }
 
+    const renderAllChoices = () => {
+      renderChoiceButtons(
+        gpuSelectionEl,
+        (data.gpu_choices || []).map((entry) => ({ value: entry.value, label: entry.label })),
+        selectedValues.gpu_selection,
+        async (value) => {
+          selectedValues.gpu_selection = value;
+          renderAllChoices();
+          await updateEstimate();
+        }
+      );
+      renderChoiceButtons(
+        contextSizeEl,
+        (data.contexts || []).map((ctx) => ({ value: String(ctx), label: `${Math.floor(ctx / 1024)}k` })),
+        selectedValues.context,
+        async (value) => {
+          selectedValues.context = value;
+          renderAllChoices();
+          await updateEstimate();
+        }
+      );
+      renderChoiceButtons(
+        modelSelectEl,
+        (data.models || []).map((model) => ({ value: model.path, label: formatModelLabel(model) })),
+        selectedValues.model_path,
+        async (value) => {
+          selectedValues.model_path = value;
+          renderAllChoices();
+          await updateEstimate();
+        }
+      );
+    };
+
+    renderAllChoices();
     await updateEstimate();
   } catch (err) {
     setStatus(`Could not load profile options: ${err.message}`);
@@ -119,9 +152,9 @@ async function launch(target) {
 
     if (target === 'main_plus_opencode') {
       payload.profile = {
-        model_path: modelSelectEl.value,
-        context: Number(contextSizeEl.value || '65536'),
-        gpu_selection: gpuSelectionEl.value || 'all',
+        model_path: selectedValues.model_path,
+        context: Number(selectedValues.context || '65536'),
+        gpu_selection: selectedValues.gpu_selection || 'all',
       };
     }
 
@@ -137,10 +170,6 @@ async function launch(target) {
     setStatus(`Could not reach launcher API. Double-click entrance.bat and wait 2-3 seconds, then retry. Error: ${err.message}`);
   }
 }
-
-[gpuSelectionEl, contextSizeEl, modelSelectEl].forEach((el) => {
-  el?.addEventListener('change', updateEstimate);
-});
 
 buttons.forEach((btn) => {
   btn.addEventListener('click', () => launch(btn.dataset.target));
