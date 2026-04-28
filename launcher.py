@@ -39,7 +39,7 @@ MOE_LAYER_BUCKETS = [(8, 32), (16, 40), (32, 48), (64, 64), (120, 80)]
 def run_bat_file(path: Path, args: list[str] | None = None) -> None:
     if not path.exists():
         raise FileNotFoundError(f"Missing file: {path}")
-    cmd = [str(path)]
+    cmd = ["cmd", "/c", str(path)]
     if args:
         cmd.extend(args)
     subprocess.Popen(cmd, cwd=str(path.parent), creationflags=subprocess.CREATE_NEW_CONSOLE)
@@ -74,10 +74,13 @@ def _check_server_health(timeout: float = 3.0) -> bool:
         return False
 
 
-def _background_main_plus_opencode(script: Path, gpu_layers: int) -> None:
+def _background_main_plus_opencode(model_path: str, context: int, gpu_layers: int, gpu_selection: str) -> None:
     """Run server startup polling + OpenCode launch in a background thread."""
-    _launch_add_log(f"Launching server profile: {script.name} (GPU layers={gpu_layers})", "info")
-    run_bat_file(script, args=[str(gpu_layers)])
+    model_abs = (ROOT / Path(model_path)).resolve()
+    server_script = MAIN_DATA_DIR / "start_server_with_params.bat"
+
+    _launch_add_log(f"Launching server: model={model_path}, ctx={context}, layers={gpu_layers}, gpu={gpu_selection}", "info")
+    run_bat_file(server_script, args=[str(model_abs), str(context), str(gpu_layers), gpu_selection])
 
     _launch_add_log("Waiting for llama-server to be ready at http://127.0.0.1:8076 ...", "info")
 
@@ -482,29 +485,27 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 return
 
             if target == "main_plus_opencode" and payload.get("profile"):
-                global PROFILE_REGISTRY
                 profile = payload["profile"]
                 model_path = str(profile.get("model_path", ""))
                 context = int(profile.get("context", 65536))
                 gpu_selection = str(profile.get("gpu_selection", "all"))
-                key = _profile_key(model_path, context, gpu_selection)
 
-                if key not in PROFILE_REGISTRY:
-                    PROFILE_REGISTRY = regenerate_profile_scripts(models, gpus, [16384, 32768, 65536, 131072])
+                estimate = estimate_fit(
+                    models=models,
+                    gpus=gpus,
+                    model_path=model_path,
+                    context=context,
+                    gpu_selection=gpu_selection,
+                )
+                max_layers = int(estimate.get("estimated_layer_count", 0))
 
-                profile_entry = PROFILE_REGISTRY.get(key)
-                if not profile_entry:
-                    raise ValueError("Unable to find generated startup profile for selection")
-
-                max_layers = int(profile_entry.get("estimated_layer_count", 0))
                 force_999 = bool(profile.get("force_999", False))
                 if force_999:
                     gpu_layers = 999
                 else:
-                    requested_layers = int(profile.get("gpu_layers", profile_entry.get("recommended_gpu_layers", 0)))
+                    requested_layers = int(profile.get("gpu_layers", estimate.get("recommended_gpu_layers", 0)))
                     gpu_layers = max(0, min(requested_layers, max_layers))
 
-                script = Path(profile_entry["script_path"])
                 _launch_add_log(f"--- Starting Main + OpenCode ---", "info")
                 _launch_add_log(f"Model: {model_path}", "info")
                 _launch_add_log(f"Context: {context}", "info")
@@ -513,7 +514,7 @@ class LauncherHandler(BaseHTTPRequestHandler):
 
                 thread = threading.Thread(
                     target=_background_main_plus_opencode,
-                    args=(script, gpu_layers),
+                    args=(model_path, context, gpu_layers, gpu_selection),
                     daemon=True,
                 )
                 thread.start()
@@ -521,9 +522,9 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 self._write_json(
                     200,
                     {
-                        "message": f"Server startup initiated with {script.name}. Monitoring progress...",
+                        "message": f"Server startup initiated (model={Path(model_path).name}, ctx={context}, layers={gpu_layers}). Monitoring progress...",
                         "status": "launching",
-                        "profile": script.name,
+                        "profile": Path(model_path).name,
                         "gpu_layers": gpu_layers,
                     },
                 )
