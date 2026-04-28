@@ -6,6 +6,26 @@ echo Starting VibeCoder entrance...
 
 del /q launcher.log 2>nul
 
+set "MISSING_FILES=0"
+if not exist "launcher.py" (
+    echo ERROR: Missing launcher.py in "%CD%".
+    set "MISSING_FILES=1"
+)
+if not exist "entrance.html" (
+    echo ERROR: Missing entrance.html in "%CD%".
+    set "MISSING_FILES=1"
+)
+if not exist "entrance.js" (
+    echo ERROR: Missing entrance.js in "%CD%".
+    set "MISSING_FILES=1"
+)
+if "%MISSING_FILES%"=="1" (
+    echo.
+    echo Startup stopped because required launcher files are missing.
+    pause
+    exit /b 1
+)
+
 where py >nul 2>nul
 if %errorlevel%==0 (
     start "VibeCoder Launcher API" cmd /c "py launcher.py > launcher.log 2>&1"
@@ -26,7 +46,7 @@ powershell -NoProfile -Command "try { $r=Invoke-WebRequest -UseBasicParsing http
 if %errorlevel%==0 goto api_ready
 
 set /a retries+=1
-if %retries% GEQ 10 goto api_failed
+if %retries% GEQ 20 goto api_failed
 timeout /t 1 /nobreak >nul
 goto wait_for_api
 

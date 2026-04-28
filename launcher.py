@@ -2,6 +2,7 @@ import json
 import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
 
@@ -18,7 +19,23 @@ TARGET_COMMANDS = {
 def run_bat_file(path: Path) -> None:
     if not path.exists():
         raise FileNotFoundError(f"Missing file: {path}")
-    subprocess.Popen(["cmd", "/c", "start", "", str(path)], shell=False)
+    subprocess.Popen(
+        ["cmd", "/c", "start", "", str(path)],
+        shell=False,
+        cwd=str(path.parent),
+    )
+
+
+def build_target_status() -> dict:
+    status = {}
+    for target, commands in TARGET_COMMANDS.items():
+        missing = [str(command) for command in commands if not command.exists()]
+        status[target] = {
+            "ready": len(missing) == 0,
+            "missing": missing,
+            "commands": [str(command) for command in commands],
+        }
+    return status
 
 
 class LauncherHandler(BaseHTTPRequestHandler):
@@ -47,16 +64,23 @@ class LauncherHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/health":
+        parsed = urlparse(self.path)
+        clean_path = parsed.path
+
+        if clean_path == "/health":
             self._write_json(200, {"status": "ok"})
             return
 
-        if self.path in {"/", "/entrance.html"}:
+        if clean_path == "/targets":
+            self._write_json(200, {"targets": build_target_status()})
+            return
+
+        if clean_path in {"/", "/entrance.html"}:
             html = (ROOT / "entrance.html").read_text(encoding="utf-8")
             self._write_text(200, html, "text/html; charset=utf-8")
             return
 
-        if self.path == "/entrance.js":
+        if clean_path == "/entrance.js":
             js = (ROOT / "entrance.js").read_text(encoding="utf-8")
             self._write_text(200, js, "application/javascript; charset=utf-8")
             return
@@ -64,7 +88,10 @@ class LauncherHandler(BaseHTTPRequestHandler):
         self._write_json(404, {"message": "Not found"})
 
     def do_POST(self):
-        if self.path != "/start":
+        parsed = urlparse(self.path)
+        clean_path = parsed.path
+
+        if clean_path != "/start":
             self._write_json(404, {"message": "Not found"})
             return
 
@@ -75,6 +102,17 @@ class LauncherHandler(BaseHTTPRequestHandler):
 
             if target not in TARGET_COMMANDS:
                 self._write_json(400, {"message": f"Unknown target: {target}"})
+                return
+
+            target_status = build_target_status()[target]
+            if not target_status["ready"]:
+                self._write_json(
+                    400,
+                    {
+                        "message": f"Cannot start {target}. Missing files found.",
+                        "missing": target_status["missing"],
+                    },
+                )
                 return
 
             for command in TARGET_COMMANDS[target]:
