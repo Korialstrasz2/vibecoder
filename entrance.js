@@ -6,10 +6,18 @@ const contextSizeEl = document.getElementById('contextSize');
 const modelSelectEl = document.getElementById('modelSelect');
 const fitEstimateEl = document.getElementById('fitEstimate');
 const startMainBtn = document.getElementById('startMainBtn');
+const gpuLayersSliderEl = document.getElementById('gpuLayersSlider');
+const gpuLayersValueEl = document.getElementById('gpuLayersValue');
+const gpuLayersHintEl = document.getElementById('gpuLayersHint');
+const force999El = document.getElementById('force999');
 const selectedValues = {
   gpu_selection: 'all',
   context: '65536',
   model_path: '',
+  gpu_layers: 0,
+  max_layers: 0,
+  recommended_gpu_layers: 0,
+  force_999: false,
 };
 
 function setStatus(message) {
@@ -64,6 +72,14 @@ async function updateEstimate() {
       })
     });
     const est = await res.json();
+    selectedValues.recommended_gpu_layers = Number(est.recommended_gpu_layers || 0);
+    selectedValues.max_layers = Number(est.estimated_layer_count || 0);
+    selectedValues.gpu_layers = selectedValues.recommended_gpu_layers;
+    gpuLayersSliderEl.min = '0';
+    gpuLayersSliderEl.max = String(selectedValues.max_layers);
+    gpuLayersSliderEl.value = String(selectedValues.gpu_layers);
+    gpuLayersValueEl.textContent = String(selectedValues.gpu_layers);
+    gpuLayersHintEl.textContent = `Recommended ${selectedValues.recommended_gpu_layers}/${selectedValues.max_layers}. You can override with the slider or check 999.`;
     fitEstimateEl.textContent = `Fit: ${est.estimated_fit} | Recommended GPU layers: ${est.recommended_gpu_layers}/${est.estimated_layer_count} | Selected VRAM: ${est.selected_vram_gb ?? 0} GB | Usable VRAM: ${est.usable_vram_gb ?? 0} GB | KV cache est: ${est.kv_cache_gb ?? 0} GB`;
   } catch (err) {
     fitEstimateEl.textContent = `Could not compute estimate: ${err.message}`;
@@ -92,6 +108,9 @@ async function loadMainOptions() {
   try {
     const res = await fetch('/main/options');
     const data = await res.json();
+    if (data.generated_profiles) {
+      setStatus(`Ready. Generated ${data.generated_profiles} startup profile .bat files in MAIN_DATA/startup_bat_profiles.`);
+    }
 
     const defaults = data.defaults || {};
     selectedValues.gpu_selection = defaults.gpu_selection || data.gpu_choices?.[0]?.value || 'all';
@@ -155,6 +174,8 @@ async function launch(target) {
         model_path: selectedValues.model_path,
         context: Number(selectedValues.context || '65536'),
         gpu_selection: selectedValues.gpu_selection || 'all',
+        gpu_layers: Number(selectedValues.gpu_layers || 0),
+        force_999: Boolean(selectedValues.force_999),
       };
     }
 
@@ -173,6 +194,16 @@ async function launch(target) {
 
 buttons.forEach((btn) => {
   btn.addEventListener('click', () => launch(btn.dataset.target));
+});
+
+gpuLayersSliderEl.addEventListener('input', () => {
+  selectedValues.gpu_layers = Number(gpuLayersSliderEl.value || '0');
+  gpuLayersValueEl.textContent = String(selectedValues.gpu_layers);
+});
+
+force999El.addEventListener('change', () => {
+  selectedValues.force_999 = force999El.checked;
+  gpuLayersSliderEl.disabled = selectedValues.force_999;
 });
 
 loadTargetReadiness();
