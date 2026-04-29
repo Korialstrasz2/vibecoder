@@ -97,7 +97,29 @@ def _background_main_plus_opencode(model_path: str, context: int, gpu_layers: in
             _launch_add_log(f"Still waiting for server... ({attempt * 2}s elapsed)", "info")
 
     if server_ready:
-        _launch_add_log("Server confirmed running. Launching OpenCode (--noninteractive)...", "info")
+        _launch_add_log("Server confirmed running.", "success")
+
+        # ── Post-launch GPU verification ──
+        try:
+            comp_res = subprocess.run(
+                ["nvidia-smi", "--query-compute-apps=pid,process_name,gpu_name,gpu_bus_id", "--format=csv,noheader"],
+                capture_output=True, text=True, timeout=5,
+            )
+            our_pid = None
+            for line in comp_res.stdout.splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 2 and "llama" in parts[1].lower():
+                    our_pid = parts[0]
+                    actual_gpu = parts[2] if len(parts) >= 3 else "?"
+                    actual_bus = parts[3] if len(parts) >= 4 else "?"
+                    _launch_add_log(f"llama-server running on GPU: {actual_gpu} (bus: {actual_bus}, pid: {our_pid})", "success")
+                    break
+            if not our_pid:
+                _launch_add_log("Could not determine which GPU llama-server is using (process not found in nvidia-smi)", "warn")
+        except Exception:
+            _launch_add_log("GPU verification check failed (nvidia-smi query error)", "warn")
+
+        _launch_add_log("Launching OpenCode (--noninteractive)...", "info")
     else:
         _launch_add_log(
             f"TIMEOUT: Server not reachable after {max_attempts * 2}s. Launching OpenCode anyway (will need OpenRouter fallback).",
@@ -116,7 +138,7 @@ def _format_gb(size_bytes: int) -> float:
 def detect_gpus() -> list[dict]:
     try:
         res = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"],
+            ["nvidia-smi", "--query-gpu=index,uuid,name,memory.total,memory.free", "--format=csv,noheader,nounits"],
             capture_output=True,
             text=True,
             check=True,
@@ -124,10 +146,19 @@ def detect_gpus() -> list[dict]:
         gpus = []
         for line in res.stdout.splitlines():
             parts = [p.strip() for p in line.split(",")]
-            if len(parts) != 3:
+            if len(parts) != 5:
                 continue
-            idx, name, mem_mb = parts
-            gpus.append({"index": idx, "name": name, "vram_gb": round(float(mem_mb) / 1024.0, 2)})
+            idx, uuid, name, mem_mb, mem_free_mb = parts
+            # nvidia-smi may report "N/A" for UUID on very old drivers; fall back to index-based ID
+            if not uuid or uuid == "N/A" or uuid == "[N/A]":
+                uuid = f"INDEX:{idx}"
+            gpus.append({
+                "index": idx,
+                "uuid": uuid,
+                "name": name,
+                "vram_gb": round(float(mem_mb) / 1024.0, 2),
+                "vram_free_gb": round(float(mem_free_mb) / 1024.0, 2),
+            })
         return gpus
     except Exception:
         return []
@@ -216,8 +247,8 @@ def scan_models() -> list[dict]:
 def choose_default_gpu(gpus: list[dict]) -> str:
     for gpu in gpus:
         if "4070" in gpu["name"].lower():
-            return gpu["index"]
-    return gpus[0]["index"] if gpus else "all"
+            return gpu["uuid"]
+    return gpus[0]["uuid"] if gpus else "all"
 
 
 def choose_default_model(models: list[dict]) -> str | None:
@@ -251,7 +282,10 @@ def estimate_fit(models: list[dict], gpus: list[dict], model_path: str, context:
     if gpu_selection == "all":
         selected_gpus = gpus
     else:
-        selected_gpus = [gpu for gpu in gpus if gpu["index"] == gpu_selection]
+        # Match by UUID first, fall back to index-based matching for legacy profile compatibility
+        selected_gpus = [gpu for gpu in gpus if gpu.get("uuid") == gpu_selection]
+        if not selected_gpus:
+            selected_gpus = [gpu for gpu in gpus if gpu["index"] == gpu_selection]
         if not selected_gpus:
             selected_gpus = gpus
 
@@ -296,7 +330,10 @@ def build_main_options() -> dict:
         "models": models,
         "contexts": contexts,
         "gpu_choices": ([{"value": "cpu", "label": "CPU only"}, {"value": "all", "label": "All detected GPUs"}] + [
-            {"value": gpu["index"], "label": f"GPU {gpu['index']} - {gpu['name']} ({gpu['vram_gb']} GB)"} for gpu in gpus
+            {
+                "value": gpu["uuid"],
+                "label": f"GPU {gpu['index']} - {gpu['name']} ({gpu['vram_gb']} GB, {gpu.get('vram_free_gb', gpu['vram_gb'])} GB free)",
+            } for gpu in gpus
         ]),
         "defaults": {
             "context": 65536,
@@ -329,26 +366,22 @@ def build_profile_script(profile: dict, models: list[dict], gpus: list[dict]) ->
     slug_gpu = re.sub(r"[^a-zA-Z0-9_-]", "_", gpu_selection)
     script_path = PROFILE_DIR / f"start_profile_{slug_model}_{context}_{slug_gpu}.bat"
 
+    # Map GPU selection to the argument format expected by start_server_with_params.bat
+    if gpu_selection == "cpu":
+        gpu_arg = "cpu"
+    elif gpu_selection == "all":
+        gpu_arg = "all"
+    else:
+        gpu_arg = gpu_selection
+
     lines = [
         "@echo off",
         "setlocal",
-        "cd /d \"%~dp0..\"",
-        f"set \"MODEL_FILE={model_abs}\"",
-        f"set \"LLAMA_CTX={context}\"",
-        "set \"CONTEXT_PROFILE=ui-profile\"",
-        "set \"LLAMA_GPU_LAYERS=%~1\"",
-        f"if \"%LLAMA_GPU_LAYERS%\"==\"\" set \"LLAMA_GPU_LAYERS={recommended_layers}\"",
+        "set \"GPU_LAYERS=%~1\"",
+        f"if \"%GPU_LAYERS%\"==\"\" set \"GPU_LAYERS={recommended_layers}\"",
+        f"echo [PROFILE] GPU_LAYERS=%GPU_LAYERS% (recommended {recommended_layers}, max {max_layers})",
+        f'call "%~dp0..\\start_server_with_params.bat" "{model_abs}" {context} %GPU_LAYERS% {gpu_arg}',
     ]
-
-    if gpu_selection == "cpu":
-        lines.extend(["set \"CUDA_VISIBLE_DEVICES=\"", "set \"GGML_CUDA_DEVICE=\""])
-    elif gpu_selection == "all":
-        lines.extend(["set \"CUDA_VISIBLE_DEVICES=\"", "set \"GGML_CUDA_DEVICE=\""])
-    else:
-        lines.extend([f"set \"CUDA_VISIBLE_DEVICES={gpu_selection}\"", "set \"GGML_CUDA_DEVICE=0\""])
-
-    lines.append(f"echo [PROFILE] LLAMA_GPU_LAYERS=%LLAMA_GPU_LAYERS% (recommended {recommended_layers}, max {max_layers})")
-    lines.append('call "start_server.bat"')
 
     script_path.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
     return script_path, {
@@ -362,7 +395,7 @@ def regenerate_profile_scripts(models: list[dict], gpus: list[dict], contexts: l
         shutil.rmtree(PROFILE_DIR)
     PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
-    gpu_values = ["cpu", "all"] + [gpu["index"] for gpu in gpus]
+    gpu_values = ["cpu", "all"] + [gpu["uuid"] for gpu in gpus]
     registry: dict[tuple[str, int, str], dict] = {}
 
     for model in models:
