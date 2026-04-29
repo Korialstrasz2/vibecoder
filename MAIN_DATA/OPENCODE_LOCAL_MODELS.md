@@ -24,11 +24,7 @@ When healthy, your local OpenAI-compatible endpoint is typically:
 
 Option A (automatic, recommended):
 
-```bat
-start_all.bat
-```
-
-This copies `config\opencode\opencode.jsonc` into:
+Double-click `entrance.bat` at the repository root. When the web UI opens, the launcher copies `config\opencode\opencode.jsonc` into:
 
 - `%APPDATA%\opencode\opencode.jsonc`
 
@@ -89,7 +85,7 @@ set LLAMA_PRESENCE_PENALTY=0.0
 set LLAMA_REPEAT_PENALTY=1.0
 ```
 
-Then restart `start_server.bat` (or `start_all.bat`) and keep OpenCode model settings aligned with `LLAMA_ALIAS`.
+Then restart `start_server.bat` and keep OpenCode model settings aligned with `LLAMA_ALIAS`.
 
 ### Sampling profiles (Qwen-friendly)
 
@@ -112,10 +108,11 @@ If you want explicit control, set for example:
 
 ## 7) Recommended daily workflow
 
-1. `start_all.bat`
-2. Wait for the health check to pass.
-3. Work inside `projects\` with OpenCode.
-4. If you change model alias/port, restart server and re-check OpenCode Settings.
+1. Double-click `entrance.bat` at the repository root.
+2. In the web UI, pick your GPU, context, and model, then click **Start Main + OpenCode**.
+3. The monitor panel shows live startup progress and GPU verification.
+4. Work inside `projects\` with OpenCode.
+5. If you change model alias/port, restart the server and re-check OpenCode Settings.
 
 ## OpenCode + Qwen3.6 vision with local llama-server
 

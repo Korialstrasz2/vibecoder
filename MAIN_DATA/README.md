@@ -10,11 +10,6 @@ Goal:
 4. Run `start_opencode.bat`
 5. Create apps inside `projects/`
 
-LAN helper scripts (optional):
-
-- `start_server_lan.bat` (main PC): starts server in LAN mode (`0.0.0.0`) and prints a shareable LAN URL.
-- `setup_work_pc_client.bat` (work PC): asks for main-PC IP/port, writes OpenCode config with remote base URL, and tests connectivity.
-
 Recommended model idea:
 
 - Qwen 3.x / Qwen Coder GGUF, Q4_K_M or Q5_K_M
@@ -46,21 +41,22 @@ vibe-coding-portable/
   start_opencode.bat
 ```
 
-## One-click startup (recommended)
+## Launch with entrance UI (recommended)
 
-Use `start_all.bat` for a full startup flow with validation and logs. It will:
+Double-click `entrance.bat` (at the repository root). This starts a launcher API on `http://127.0.0.1:8765` and opens a web UI where you can:
 
-1. Load `local_settings.bat` when present.
-2. Validate required commands (`powershell`, `node`, `npm`, `opencode`).
-3. Auto-install OpenCode (`opencode-ai`) if missing.
-4. Validate `runtime\llama.cpp\llama-server.exe` and `models\*.gguf`.
-5. Install OpenCode config to `%APPDATA%\opencode\opencode.jsonc`.
-6. Launch `start_server.bat` in a separate window.
-7. Poll `http://127.0.0.1:8076/v1/models` (or your configured host/port) until healthy.
-8. Launch OpenCode inside `projects\`.
+- Select GPU target, context size, and model.
+- See a VRAM fit estimate before launching.
+- Launch **Main Server + OpenCode** and monitor startup progress in real time.
+- Launch **Assistant Small** or **Connectors Server** with one click.
 
-Logs are written to `logs\startup_*.log` and `logs\llama_server_*.log`.
-On failure, the script reports the exact failed startup step and exit code.
+When launching Main Server + OpenCode, the launcher:
+1. Generates the llama-server command with your chosen GPU, layers, and context.
+2. Polls `http://127.0.0.1:8076/v1/models` until the server is healthy.
+3. Verifies which GPU the server actually loaded on (logged in the monitor).
+4. Launches OpenCode inside `projects\`.
+
+Logs are written to `logs\` and can also be viewed live in the monitor panel.
 
 ## OpenCode + local models setup guide
 
@@ -140,9 +136,9 @@ Before editing files, propose the file structure.
 ```
 
 
-## Side service voice assistant (SMALL_ASSISTANT)
+## Side service voice assistant (ASSISTANT_SMALL)
 
-A local side-service agent is available under [`SMALL_ASSISTANT/`](SMALL_ASSISTANT/README.md).
+A local side-service agent is available under [`ASSISTANT_SMALL/`](ASSISTANT_SMALL/README_AUDIO.md).
 
 It provides:
 
@@ -154,6 +150,8 @@ It provides:
 - escalation action support (e.g., opening main OpenCode flow)
 
 It also includes a predefined action script that starts `start_server.bat` with choices `1` then `3`, then opens OpenCode.
+
+For Gemma 4 audio input support, see [`ASSISTANT_SMALL/README_AUDIO.md`](ASSISTANT_SMALL/README_AUDIO.md).
 
 ## Notes
 
