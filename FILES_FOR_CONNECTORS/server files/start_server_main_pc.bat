@@ -64,8 +64,9 @@ echo.
 echo ###########################################################################
 echo.
 
-if exist "start_server_lan.bat" (
-  call "start_server_lan.bat"
+set "SERVER_SCRIPT=%ROOT_DIR%\MAIN_DATA\start_server.bat"
+if exist "%SERVER_SCRIPT%" (
+  call "%SERVER_SCRIPT%"
   set "EXIT_CODE=%ERRORLEVEL%"
   if not "%EXIT_CODE%"=="0" (
     echo.
@@ -76,7 +77,7 @@ if exist "start_server_lan.bat" (
   exit /b %EXIT_CODE%
 )
 
-echo [ERROR] Could not find start_server_lan.bat in:
-echo   "%ROOT_DIR%"
+echo [ERROR] Could not find server startup script in:
+echo   "%SERVER_SCRIPT%"
 pause
 exit /b 1

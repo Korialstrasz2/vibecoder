@@ -25,7 +25,7 @@
         "openrouter/auto": {
           "name": "OpenRouter (auto)",
           "limit": {
-            "context": 65536,
+            "context": 131072,
             "output": 8192
           }
         }
@@ -41,7 +41,7 @@
         "qwen3.6-vision": {
           "name": "Qwen 3.6 Vision (local)",
           "limit": {
-            "context": 65536,
+            "context": 131072,
             "output": 8192
           },
           "modalities": {
@@ -57,7 +57,7 @@
         "qwen-local": {
           "name": "Qwen local",
           "limit": {
-            "context": 65536,
+            "context": 131072,
             "output": 8192
           }
         }
@@ -65,6 +65,8 @@
     }
   }
 }
+
+
 
 
 

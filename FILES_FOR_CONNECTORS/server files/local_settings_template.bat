@@ -1,5 +1,5 @@
 @echo off
-rem Copy this file to the repo root as: local_settings.bat
+rem Copy this file to MAIN_DATA\ as: local_settings.bat
 rem Then edit model path/name if needed.
 
 set "LLAMA_PORT=8076"
