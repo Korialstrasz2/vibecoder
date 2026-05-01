@@ -190,6 +190,7 @@ if /I "!LLAMA_ENABLE_VISION!"=="0" (
         if not defined MMPROJ_FILE_RESOLVED call :try_mmproj_family "%CD%\models"
     )
 
+
     if not defined MMPROJ_FILE_RESOLVED (
         echo [%DATE% %TIME%] No compatible mmproj found; server will start text-only>>"!LOG_FILE!"
         echo [WARN] No compatible vision projector found.
@@ -290,6 +291,7 @@ exit /b !SERVER_EXIT!
 rem ────────────────────────────────────────────────────────────
 rem :try_mmproj_family  -- auto-detect mmproj by model family
 rem ────────────────────────────────────────────────────────────
+
 :try_mmproj_family
 if not exist "%~1" exit /b 0
 
