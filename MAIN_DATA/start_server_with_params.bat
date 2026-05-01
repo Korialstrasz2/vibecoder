@@ -158,6 +158,7 @@ echo [%DATE% %TIME%] LLAMA_SAMPLING_PROFILE=!LLAMA_SAMPLING_PROFILE!>>"!LOG_FILE
 
 rem --- Resolve mmproj for vision (optional) ---
 set "MMPROJ_FILE_RESOLVED="
+set "MMPROJ_MATCH_QUALITY="
 
 if /I "!LLAMA_ENABLE_VISION!"=="0" (
     echo [%DATE% %TIME%] LLAMA_ENABLE_VISION=0, skipping mmproj detection>>"!LOG_FILE!"
@@ -165,6 +166,7 @@ if /I "!LLAMA_ENABLE_VISION!"=="0" (
     if defined MMPROJ_FILE (
         if exist "!MMPROJ_FILE!" (
             set "MMPROJ_FILE_RESOLVED=!MMPROJ_FILE!"
+            set "MMPROJ_MATCH_QUALITY=preset"
             echo [%DATE% %TIME%] MMPROJ preset: "!MMPROJ_FILE!">>"!LOG_FILE!"
         ) else (
             echo [%DATE% %TIME%] WARNING: preset MMPROJ_FILE not found: "!MMPROJ_FILE!">>"!LOG_FILE!"
@@ -173,16 +175,7 @@ if /I "!LLAMA_ENABLE_VISION!"=="0" (
     )
 
     if not defined MMPROJ_FILE_RESOLVED (
-        rem Try same directory as model
-        for %%I in ("!MODEL_FILE!") do set "MODEL_DIR=%%~dpI"
-        if exist "!MODEL_DIR!" (
-            for %%F in ("!MODEL_DIR!*mmproj*.gguf") do (
-                if exist "%%~fF" if not defined MMPROJ_FILE_RESOLVED (
-                    set "MMPROJ_FILE_RESOLVED=%%~fF"
-                    echo [%DATE% %TIME%] MMPROJ same-folder: "%%~fF">>"!LOG_FILE!"
-                )
-            )
-        )
+        call :try_mmproj_same_dir
     )
 
     if not defined MMPROJ_FILE_RESOLVED (
@@ -190,12 +183,16 @@ if /I "!LLAMA_ENABLE_VISION!"=="0" (
         if not defined MMPROJ_FILE_RESOLVED call :try_mmproj_family "%CD%\models"
     )
 
+    rem Deliberately do not auto-load a generic mmproj*.gguf. Projectors are family-specific.
+    rem To force a specific projector, set MMPROJ_FILE in local_settings.bat.
+
     if not defined MMPROJ_FILE_RESOLVED (
-        echo [%DATE% %TIME%] No compatible mmproj found; server will start text-only>>"!LOG_FILE!"
-        echo [WARN] No compatible vision projector found.
+        echo [%DATE% %TIME%] No compatible family-specific mmproj detected; server will start text-only>>"!LOG_FILE!"
+        echo [WARN] No compatible family-specific mmproj detected.
         echo        Starting text-only to avoid loading the wrong projector.
-        echo        To force vision, set MMPROJ_FILE in local_settings.bat.
+        echo        To force vision, set MMPROJ_FILE explicitly in local_settings.bat.
     ) else (
+        echo [%DATE% %TIME%] Vision projector selected [!MMPROJ_MATCH_QUALITY!]: "!MMPROJ_FILE_RESOLVED!">>"!LOG_FILE!"
         echo [INFO] Vision projector: "!MMPROJ_FILE_RESOLVED!"
     )
 )
@@ -290,6 +287,21 @@ exit /b !SERVER_EXIT!
 rem ────────────────────────────────────────────────────────────
 rem :try_mmproj_family  -- auto-detect mmproj by model family
 rem ────────────────────────────────────────────────────────────
+
+
+:try_mmproj_same_dir
+for %%I in ("!MODEL_FILE!") do set "MODEL_DIR=%%~dpI"
+if not defined MODEL_DIR exit /b 0
+for %%F in ("!MODEL_DIR!*mmproj*.gguf") do (
+    if exist "%%~fF" (
+        set "MMPROJ_FILE_RESOLVED=%%~fF"
+        set "MMPROJ_MATCH_QUALITY=same-folder"
+        echo [%DATE% %TIME%] MMPROJ same-folder: "%%~fF">>"!LOG_FILE!"
+        exit /b 0
+    )
+)
+exit /b 0
+
 :try_mmproj_family
 if not exist "%~1" exit /b 0
 
@@ -298,6 +310,7 @@ if not errorlevel 1 (
     for /r "%~1" %%F in (*gemma*mmproj*.gguf mmproj*gemma*.gguf) do (
         if not defined MMPROJ_FILE_RESOLVED (
             set "MMPROJ_FILE_RESOLVED=%%~fF"
+            set "MMPROJ_MATCH_QUALITY=family-gemma"
             echo [%DATE% %TIME%] MMPROJ family-gemma: "%%~fF">>"!LOG_FILE!"
         )
     )
@@ -309,6 +322,7 @@ if not errorlevel 1 (
     for /r "%~1" %%F in (*Qwen3.6-27B*mmproj*.gguf mmproj*Qwen3.6-27B*.gguf) do (
         if not defined MMPROJ_FILE_RESOLVED (
             set "MMPROJ_FILE_RESOLVED=%%~fF"
+            set "MMPROJ_MATCH_QUALITY=family-qwen3.6-27b"
             echo [%DATE% %TIME%] MMPROJ family-qwen3.6-27b: "%%~fF">>"!LOG_FILE!"
         )
     )
@@ -320,6 +334,7 @@ if not errorlevel 1 (
     for /r "%~1" %%F in (*Qwen3.6-35B*mmproj*.gguf mmproj*Qwen3.6-35B*.gguf *35B*mmproj*.gguf mmproj*35B*.gguf mmproj-BF16.gguf) do (
         if not defined MMPROJ_FILE_RESOLVED (
             set "MMPROJ_FILE_RESOLVED=%%~fF"
+            set "MMPROJ_MATCH_QUALITY=family-qwen3.6-35b"
             echo [%DATE% %TIME%] MMPROJ family-qwen3.6-35b: "%%~fF">>"!LOG_FILE!"
         )
     )
