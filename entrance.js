@@ -11,6 +11,10 @@ const gpuLayersValueEl = document.getElementById('gpuLayersValue');
 const gpuLayersHintEl = document.getElementById('gpuLayersHint');
 const force999El = document.getElementById('force999');
 const moeCpuInputEl = document.getElementById('moeCpuInput');
+const moeCpuValueEl = document.getElementById('moeCpuValue');
+const moeValuePillEl = document.getElementById('moeValuePill');
+const moeResetBtn = document.getElementById('moeResetBtn');
+const moeIgnoreBtn = document.getElementById('moeIgnoreBtn');
 
 // ── Monitor panel elements ──
 const monitorSection = document.getElementById('monitor-section');
@@ -22,6 +26,7 @@ const monitorLog = document.getElementById('monitor-log');
 let monitorPollId = null;
 let monitorLogIndex = 0;
 let monitorPhase = 'idle'; // idle | launching | ready | error
+const DEFAULT_MOE_CPU = 35;
 
 const selectedValues = {
   gpu_selection: 'all',
@@ -31,8 +36,26 @@ const selectedValues = {
   max_layers: 0,
   recommended_gpu_layers: 0,
   force_999: false,
-  n_cpu_moe: '',
+  n_cpu_moe: DEFAULT_MOE_CPU,
 };
+
+function updateMoeUi() {
+  const isIgnored = selectedValues.n_cpu_moe === '';
+  if (isIgnored) {
+    moeCpuInputEl.disabled = true;
+    moeCpuValueEl.textContent = '--';
+    moeValuePillEl.textContent = 'Ignored (launcher default)';
+    moeIgnoreBtn.textContent = 'Ignored';
+    return;
+  }
+
+  const value = Number(selectedValues.n_cpu_moe || DEFAULT_MOE_CPU);
+  moeCpuInputEl.disabled = false;
+  moeCpuInputEl.value = String(value);
+  moeCpuValueEl.textContent = String(value);
+  moeValuePillEl.textContent = value === DEFAULT_MOE_CPU ? `Using default (${DEFAULT_MOE_CPU})` : `Custom value (${value})`;
+  moeIgnoreBtn.textContent = 'Ignore';
+}
 
 // ── Monitor helpers ──
 
@@ -365,6 +388,18 @@ loadMainOptions();
 monitorSection.classList.remove('visible');
 
 moeCpuInputEl?.addEventListener('input', () => {
-  const raw = String(moeCpuInputEl.value || '').trim();
-  selectedValues.n_cpu_moe = raw === '' ? '' : Number(raw);
+  selectedValues.n_cpu_moe = Number(moeCpuInputEl.value || DEFAULT_MOE_CPU);
+  updateMoeUi();
 });
+
+moeResetBtn?.addEventListener('click', () => {
+  selectedValues.n_cpu_moe = DEFAULT_MOE_CPU;
+  updateMoeUi();
+});
+
+moeIgnoreBtn?.addEventListener('click', () => {
+  selectedValues.n_cpu_moe = selectedValues.n_cpu_moe === '' ? DEFAULT_MOE_CPU : '';
+  updateMoeUi();
+});
+
+updateMoeUi();
