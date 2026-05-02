@@ -52,6 +52,11 @@
     #serverDot { width:10px; height:10px; border-radius:50%; background:#475569; display:inline-block; }
     #serverDot.online { background:#22c55e; box-shadow:0 0 6px #22c55e; }
     #serverDot.offline { background:#ef4444; }
+    .moe-panel { background:#0b1220; border:1px solid #334155; border-radius:10px; padding:12px; }
+    .moe-top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+    .moe-pill { font-size:.82rem; color:#93c5fd; background:#172554; border:1px solid #1d4ed8; border-radius:999px; padding:4px 10px; }
+    .ghost-btn { background:transparent; border:1px solid #475569; color:#cbd5e1; }
+    .ghost-btn:hover { background:#172033; }
   </style>
 </head>
 <body>
@@ -90,10 +95,20 @@
         </div>
         <div>
           <label for="moeCpuInput">MoE CPU expert layers (--n-cpu-moe)</label>
-          <div class="slider-row">
-            <input type="number" id="moeCpuInput" min="0" max="64" step="1" placeholder="Auto / unset" style="max-width:180px;" />
+          <div class="moe-panel">
+            <div class="moe-top">
+              <span class="moe-pill" id="moeValuePill">Using default (35)</span>
+              <div class="button-row" style="margin:0;">
+                <button type="button" class="ghost-btn" id="moeResetBtn">Reset default</button>
+                <button type="button" class="ghost-btn" id="moeIgnoreBtn">Ignore</button>
+              </div>
+            </div>
+            <div class="slider-row">
+              <input type="range" id="moeCpuInput" min="28" max="40" step="1" value="35" />
+              <span id="moeCpuValue">35</span>
+            </div>
           </div>
-          <div class="small">Guide: 8 GB VRAM start ~35 (try 37/35/33/31). 12 GB: 29-33. 16 GB: 23-29. Leave empty for non-MoE.</div>
+          <div class="small">For Qwen3.6-35B-A3B Q4, this controls how many MoE expert layers stay on CPU RAM. Higher = safer memory usage but slower tokens/s. Lower = more experts on GPU (faster) until VRAM overflow. 8 GB VRAM usually works around 33-37, 12 GB around 30-34, 16 GB around 26-31. Start from 35 and move down one step at a time while watching OOM/retries.</div>
         </div>
         <div>
           <label>GPU Layers</label>
