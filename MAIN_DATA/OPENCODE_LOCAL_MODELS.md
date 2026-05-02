@@ -87,6 +87,30 @@ set LLAMA_REPEAT_PENALTY=1.0
 
 Then restart `start_server.bat` and keep OpenCode model settings aligned with `LLAMA_ALIAS`.
 
+### MoE tuning (Qwen3.6-35B-A3B, keep Q4 quality)
+
+If your model is MoE, use `LLAMA_CPU_MOE` in `local_settings.bat` to explicitly control expert-layer offload:
+
+```bat
+set LLAMA_CPU_MOE=35
+```
+
+`start_server.bat` and `start_server_with_params.bat` both forward this as `--n-cpu-moe 35` (so normal launch and `entrance.bat` launch are both covered).
+
+Quick guide (higher VRAM => lower `LLAMA_CPU_MOE` usually possible):
+
+- **8 GB VRAM**: start `35`, then test `37`, `35`, `33`, `31`
+- **12 GB VRAM**: start around `31`, tune in `29-33`
+- **16 GB VRAM**: start around `27`, tune in `23-29`
+
+Rule of thumb:
+
+- Lower `LLAMA_CPU_MOE` = more MoE work on GPU = faster until OOM.
+- Raise it if you hit OOM, driver reset, or severe stutter.
+- Keep `LLAMA_GPU_LAYERS` high (`999`) and tune only `LLAMA_CPU_MOE` first.
+
+Important: with llama.cpp you are **not selecting which expert IDs fire per token** (routing is model-driven). You are selecting **where MoE expert layers execute** (GPU vs CPU), which is the key performance control for Q4 on limited VRAM.
+
 ### Sampling profiles (Qwen-friendly)
 
 `start_server.bat` supports starter sampling profiles via `LLAMA_SAMPLING_PROFILE`:

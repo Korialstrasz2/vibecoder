@@ -32,6 +32,7 @@ if not defined LLAMA_GPU_LAYERS set "LLAMA_GPU_LAYERS=999"
 if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
 if not defined LLAMA_EXE set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
 if not defined LLAMA_ENABLE_VISION set "LLAMA_ENABLE_VISION=1"
+if not defined LLAMA_CPU_MOE set "LLAMA_CPU_MOE="
 
 rem --- Compute mode selection ---
 rem When CONTEXT_PROFILE is set (UI launch), skip interactive prompt and use preset GPU layers.
@@ -93,6 +94,7 @@ call :log LLAMA_COMPUTE_MODE=!LLAMA_COMPUTE_MODE!
 call :log LLAMA_GPU_LAYERS=!LLAMA_GPU_LAYERS!
 call :log LLAMA_ALIAS=!LLAMA_ALIAS!
 call :log LLAMA_ENABLE_VISION=!LLAMA_ENABLE_VISION!
+if defined LLAMA_CPU_MOE call :log LLAMA_CPU_MOE=!LLAMA_CPU_MOE!
 call :log Initial LLAMA_EXE=!LLAMA_EXE!
 
 rem --- Context profile selection / preset ---
@@ -355,6 +357,12 @@ echo Models API:  http://!LLAMA_HOST!:!LLAMA_PORT!/v1/models
 echo Ctx:         !LLAMA_CTX!
 echo GPU layers:  !LLAMA_GPU_LAYERS!
 echo Alias:       !LLAMA_ALIAS!
+if defined LLAMA_CPU_MOE echo MoE offload: !LLAMA_CPU_MOE! expert layers on CPU (--n-cpu-moe)
+if defined LLAMA_CPU_MOE (
+    echo [Guide] Lower LLAMA_CPU_MOE = more MoE on GPU = faster until OOM.
+    echo [Guide] 8 GB VRAM: start around 35, then try 37, 35, 33, 31.
+    echo [Guide] 12 GB VRAM: start around 29-33. 16 GB VRAM: start around 23-29.
+)
 if defined LLAMA_SAMPLING_PROFILE echo Sampling:    !LLAMA_SAMPLING_PROFILE!
 if defined LLAMA_TEMPERATURE echo Temp:        !LLAMA_TEMPERATURE!
 if defined LLAMA_TOP_K echo Top-K:       !LLAMA_TOP_K!
@@ -365,11 +373,17 @@ if defined LLAMA_REPEAT_PENALTY echo Repeat:      !LLAMA_REPEAT_PENALTY!
 echo Log:         !LOG_FILE!
 echo.
 
+if defined LLAMA_CPU_MOE (
+    set "LLAMA_MOE_ARG=--n-cpu-moe !LLAMA_CPU_MOE!"
+) else (
+    set "LLAMA_MOE_ARG="
+)
+
 call :log Launch command:
 if defined MMPROJ_FILE_RESOLVED (
-    call :log "!LLAMA_EXE!" --model "!MODEL_FILE!" --mmproj "!MMPROJ_FILE_RESOLVED!" --host "!LLAMA_HOST!" --port "!LLAMA_PORT!" --ctx-size "!LLAMA_CTX!" --n-gpu-layers "!LLAMA_GPU_LAYERS!" --alias "!LLAMA_ALIAS!" --temp "!LLAMA_TEMPERATURE!" --top-k "!LLAMA_TOP_K!" --top-p "!LLAMA_TOP_P!" --min-p "!LLAMA_MIN_P!" --presence-penalty "!LLAMA_PRESENCE_PENALTY!" --repeat-penalty "!LLAMA_REPEAT_PENALTY!"
+    call :log "!LLAMA_EXE!" --model "!MODEL_FILE!" --mmproj "!MMPROJ_FILE_RESOLVED!" --host "!LLAMA_HOST!" --port "!LLAMA_PORT!" --ctx-size "!LLAMA_CTX!" --n-gpu-layers "!LLAMA_GPU_LAYERS!" --alias "!LLAMA_ALIAS!" !LLAMA_MOE_ARG! --temp "!LLAMA_TEMPERATURE!" --top-k "!LLAMA_TOP_K!" --top-p "!LLAMA_TOP_P!" --min-p "!LLAMA_MIN_P!" --presence-penalty "!LLAMA_PRESENCE_PENALTY!" --repeat-penalty "!LLAMA_REPEAT_PENALTY!"
 ) else (
-    call :log "!LLAMA_EXE!" --model "!MODEL_FILE!" --host "!LLAMA_HOST!" --port "!LLAMA_PORT!" --ctx-size "!LLAMA_CTX!" --n-gpu-layers "!LLAMA_GPU_LAYERS!" --alias "!LLAMA_ALIAS!" --temp "!LLAMA_TEMPERATURE!" --top-k "!LLAMA_TOP_K!" --top-p "!LLAMA_TOP_P!" --min-p "!LLAMA_MIN_P!" --presence-penalty "!LLAMA_PRESENCE_PENALTY!" --repeat-penalty "!LLAMA_REPEAT_PENALTY!"
+    call :log "!LLAMA_EXE!" --model "!MODEL_FILE!" --host "!LLAMA_HOST!" --port "!LLAMA_PORT!" --ctx-size "!LLAMA_CTX!" --n-gpu-layers "!LLAMA_GPU_LAYERS!" --alias "!LLAMA_ALIAS!" !LLAMA_MOE_ARG! --temp "!LLAMA_TEMPERATURE!" --top-k "!LLAMA_TOP_K!" --top-p "!LLAMA_TOP_P!" --min-p "!LLAMA_MIN_P!" --presence-penalty "!LLAMA_PRESENCE_PENALTY!" --repeat-penalty "!LLAMA_REPEAT_PENALTY!"
 )
 
 pushd "!LLAMA_EXE_DIR!" >nul 2>&1
@@ -389,6 +403,7 @@ if defined MMPROJ_FILE_RESOLVED (
       --ctx-size "!LLAMA_CTX!" ^
       --n-gpu-layers "!LLAMA_GPU_LAYERS!" ^
       --alias "!LLAMA_ALIAS!" ^
+      !LLAMA_MOE_ARG! ^
       --temp "!LLAMA_TEMPERATURE!" ^
       --top-k "!LLAMA_TOP_K!" ^
       --top-p "!LLAMA_TOP_P!" ^
@@ -403,6 +418,7 @@ if defined MMPROJ_FILE_RESOLVED (
       --ctx-size "!LLAMA_CTX!" ^
       --n-gpu-layers "!LLAMA_GPU_LAYERS!" ^
       --alias "!LLAMA_ALIAS!" ^
+      !LLAMA_MOE_ARG! ^
       --temp "!LLAMA_TEMPERATURE!" ^
       --top-k "!LLAMA_TOP_K!" ^
       --top-p "!LLAMA_TOP_P!" ^
