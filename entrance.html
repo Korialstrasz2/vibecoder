@@ -89,6 +89,13 @@
           <div id="modelSelect" class="button-row" role="radiogroup" aria-label="Model selection"></div>
         </div>
         <div>
+          <label for="moeCpuInput">MoE CPU expert layers (--n-cpu-moe)</label>
+          <div class="slider-row">
+            <input type="number" id="moeCpuInput" min="0" max="64" step="1" placeholder="Auto / unset" style="max-width:180px;" />
+          </div>
+          <div class="small">Guide: 8 GB VRAM start ~35 (try 37/35/33/31). 12 GB: 29-33. 16 GB: 23-29. Leave empty for non-MoE.</div>
+        </div>
+        <div>
           <label>GPU Layers</label>
           <div class="slider-row">
             <input type="range" id="gpuLayersSlider" min="0" max="0" value="0" />

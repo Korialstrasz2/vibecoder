@@ -74,13 +74,13 @@ def _check_server_health(timeout: float = 3.0) -> bool:
         return False
 
 
-def _background_main_plus_opencode(model_path: str, context: int, gpu_layers: int, gpu_selection: str) -> None:
+def _background_main_plus_opencode(model_path: str, context: int, gpu_layers: int, gpu_selection: str, n_cpu_moe: str) -> None:
     """Run server startup polling + OpenCode launch in a background thread."""
     model_abs = (ROOT / Path(model_path)).resolve()
     server_script = MAIN_DATA_DIR / "start_server_with_params.bat"
 
     _launch_add_log(f"Launching server: model={model_path}, ctx={context}, layers={gpu_layers}, gpu={gpu_selection}", "info")
-    run_bat_file(server_script, args=[str(model_abs), str(context), str(gpu_layers), gpu_selection])
+    run_bat_file(server_script, args=[str(model_abs), str(context), str(gpu_layers), gpu_selection, str(n_cpu_moe or "")])
 
     _launch_add_log("Waiting for llama-server to be ready at http://127.0.0.1:8076 ...", "info")
 
@@ -550,10 +550,12 @@ class LauncherHandler(BaseHTTPRequestHandler):
                 _launch_add_log(f"Context: {context}", "info")
                 _launch_add_log(f"GPU selection: {gpu_selection}", "info")
                 _launch_add_log(f"GPU layers: {gpu_layers} (force_999={force_999})", "info")
+                n_cpu_moe = str(profile.get("n_cpu_moe", "")).strip()
+                _launch_add_log(f"MoE offload (--n-cpu-moe): {n_cpu_moe or 'auto/unset'}", "info")
 
                 thread = threading.Thread(
                     target=_background_main_plus_opencode,
-                    args=(model_path, context, gpu_layers, gpu_selection),
+                    args=(model_path, context, gpu_layers, gpu_selection, n_cpu_moe),
                     daemon=True,
                 )
                 thread.start()

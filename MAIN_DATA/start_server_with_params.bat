@@ -37,6 +37,7 @@ set "MODEL_FILE=%~1"
 set "LLAMA_CTX=%~2"
 set "LLAMA_GPU_LAYERS=%~3"
 set "GPU_SELECTION=%~4"
+set "LLAMA_CPU_MOE_ARG=%~5"
 
 echo [%DATE% %TIME%] MODEL_FILE=!MODEL_FILE!>>"!LOG_FILE!"
 echo [%DATE% %TIME%] LLAMA_CTX=!LLAMA_CTX!>>"!LOG_FILE!"
@@ -70,6 +71,8 @@ if not defined LLAMA_PORT set "LLAMA_PORT=8076"
 if not defined LLAMA_ALIAS set "LLAMA_ALIAS=qwen-local"
 if not defined LLAMA_EXE set "LLAMA_EXE=%CD%\runtime\llama.cpp\llama-server.exe"
 if not defined LLAMA_ENABLE_VISION set "LLAMA_ENABLE_VISION=1"
+if not defined LLAMA_CPU_MOE set "LLAMA_CPU_MOE="
+if not "!LLAMA_CPU_MOE_ARG!"=="" set "LLAMA_CPU_MOE=!LLAMA_CPU_MOE_ARG!"
 
 rem --- Resolve llama-server.exe ---
 if exist "!LLAMA_EXE!" (
@@ -223,6 +226,7 @@ echo Models API:  http://!LLAMA_HOST!:!LLAMA_PORT!/v1/models
 echo Ctx:         !LLAMA_CTX!
 echo GPU layers:  !LLAMA_GPU_LAYERS!
 echo Alias:       !LLAMA_ALIAS!
+if defined LLAMA_CPU_MOE echo MoE offload: !LLAMA_CPU_MOE! expert layers on CPU (--n-cpu-moe)
 if defined LLAMA_SAMPLING_PROFILE echo Sampling:    !LLAMA_SAMPLING_PROFILE!
 if defined LLAMA_TEMPERATURE echo Temp:        !LLAMA_TEMPERATURE!
 if defined LLAMA_TOP_K echo Top-K:       !LLAMA_TOP_K!
@@ -232,6 +236,12 @@ if defined LLAMA_PRESENCE_PENALTY echo Presence:    !LLAMA_PRESENCE_PENALTY!
 if defined LLAMA_REPEAT_PENALTY echo Repeat:      !LLAMA_REPEAT_PENALTY!
 echo Log:         "!LOG_FILE!"
 echo.
+
+if defined LLAMA_CPU_MOE (
+    set "LLAMA_MOE_ARG=--n-cpu-moe !LLAMA_CPU_MOE!"
+) else (
+    set "LLAMA_MOE_ARG="
+)
 
 rem --- Launch llama-server directly (no delegation) ---
 pushd "!LLAMA_EXE_DIR!" >nul 2>&1
@@ -252,6 +262,7 @@ if defined MMPROJ_FILE_RESOLVED (
       --ctx-size "!LLAMA_CTX!" ^
       --n-gpu-layers "!LLAMA_GPU_LAYERS!" ^
       --alias "!LLAMA_ALIAS!" ^
+      !LLAMA_MOE_ARG! ^
       --temp "!LLAMA_TEMPERATURE!" ^
       --top-k "!LLAMA_TOP_K!" ^
       --top-p "!LLAMA_TOP_P!" ^
@@ -266,6 +277,7 @@ if defined MMPROJ_FILE_RESOLVED (
       --ctx-size "!LLAMA_CTX!" ^
       --n-gpu-layers "!LLAMA_GPU_LAYERS!" ^
       --alias "!LLAMA_ALIAS!" ^
+      !LLAMA_MOE_ARG! ^
       --temp "!LLAMA_TEMPERATURE!" ^
       --top-k "!LLAMA_TOP_K!" ^
       --top-p "!LLAMA_TOP_P!" ^

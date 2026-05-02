@@ -10,6 +10,7 @@ const gpuLayersSliderEl = document.getElementById('gpuLayersSlider');
 const gpuLayersValueEl = document.getElementById('gpuLayersValue');
 const gpuLayersHintEl = document.getElementById('gpuLayersHint');
 const force999El = document.getElementById('force999');
+const moeCpuInputEl = document.getElementById('moeCpuInput');
 
 // ── Monitor panel elements ──
 const monitorSection = document.getElementById('monitor-section');
@@ -30,6 +31,7 @@ const selectedValues = {
   max_layers: 0,
   recommended_gpu_layers: 0,
   force_999: false,
+  n_cpu_moe: '',
 };
 
 // ── Monitor helpers ──
@@ -306,6 +308,7 @@ async function launch(target) {
         gpu_selection: selectedValues.gpu_selection || 'all',
         gpu_layers: Number(selectedValues.gpu_layers || 0),
         force_999: Boolean(selectedValues.force_999),
+        n_cpu_moe: selectedValues.n_cpu_moe === '' ? '' : Number(selectedValues.n_cpu_moe),
       };
     }
 
@@ -360,3 +363,8 @@ loadMainOptions();
 
 // Show monitor section but collapsed
 monitorSection.classList.remove('visible');
+
+moeCpuInputEl?.addEventListener('input', () => {
+  const raw = String(moeCpuInputEl.value || '').trim();
+  selectedValues.n_cpu_moe = raw === '' ? '' : Number(raw);
+});
