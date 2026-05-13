@@ -1,0 +1,74 @@
+# =============================================================================
+# SECRETS & CREDENTIALS — These must NEVER be committed
+# =============================================================================
+*.env
+.env*
+local_settings*.bat
+local_settings*.ps1
+*credential*.json
+*credentials*.json
+**/loose_agent_credentials.json
+**/cookie_cleanup*.csv
+**/cookies*.txt
+
+# =============================================================================
+# CACHE & TEMP FILES
+# =============================================================================
+__pycache__/
+*.pyc
+*.pyo
+ASSISTANT_SMALL/system/cache/
+**/.voice_device.json
+**/.last_dshow_devices.txt
+**/ptt/stop.flag
+*.tmp
+*.temp
+
+# =============================================================================
+# LOGS
+# =============================================================================
+*.log
+logs/
+
+# =============================================================================
+# VIRTUAL ENVIRONMENTS
+# =============================================================================
+.venv*/
+venv*/
+.virtualenv*/
+.v-env*/
+env/
+
+# =============================================================================
+# BUILD & DEPENDENCY DIRECTORIES
+# =============================================================================
+node_modules/
+runtime/
+dist/
+build/
+*.egg-info/
+
+# =============================================================================
+# IDE, EDITOR & OS FILES
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# =============================================================================
+# PROJECT-SPECIFIC — Avoid syncing local/user data
+# =============================================================================
+backup files - don't touch/
+MAIN_DATA/screenshots/
+MAIN_DATA/docs/
+config/
+scripts/
+launcher.log
+
+# User projects (may contain their own .git)
+projects/

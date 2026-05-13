@@ -1,9 +1,0 @@
-@echo off
-set "MODEL_FILE=D:\vibe-coding-portable-kit\vibe-coding-portable\models\GEMMA_4_LARGE\gemma-4-E4B-it-Q4_K_M.gguf"
-set "MMPROJ_FILE=D:\vibe-coding-portable-kit\vibe-coding-portable\models\GEMMA_4_LARGE\mmproj-BF16.gguf"
-set "LLAMA_TEMPERATURE=0.9"
-set "LLAMA_TOP_K=64"
-set "LLAMA_TOP_P=0.95"
-set "LLAMA_MIN_P=0.0"
-set "LLAMA_PRESENCE_PENALTY=0.0"
-set "LLAMA_REPEAT_PENALTY=1.0" 
